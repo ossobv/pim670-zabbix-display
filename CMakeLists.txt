@@ -1,8 +1,8 @@
-# CMakeLists.txt - part of the PicoW C/C++ Boilerplate Project
+# CMakeLists.txt - part of PIM670 Zabbix Display
 cmake_minimum_required(VERSION 3.12)
 
 # Change your executable name to something creative!
-set(NAME picow-boilerplate) # <-- Name your project/executable here!
+set(NAME pim670-zabbix-display)
 
 # Explicitly define that the board is a PicoW
 set(PICO_BOARD pico_w)
@@ -11,7 +11,7 @@ set(PICO_BOARD pico_w)
 include(pico_sdk_import.cmake)
 
 # If you are using any Pimoroni devices, you will need to import these too.
-# include(pimoroni_pico_import.cmake)
+include(pimoroni_pico_import.cmake)
 
 # Configure the project language options
 project(${NAME} C CXX ASM)
@@ -44,10 +44,12 @@ target_link_libraries(${NAME}
 # Pimoroni libraries are done a little differently; use include for each library
 # and it will get pulled in from `pimoroni-pico` as stored alongside your project.
 # After that it's linked as a library as normal.
-#include(libraries/pico_explorer/pico_explorer)
-#target_link_libraries(${NAME}
-#    pico_explorer # <-- List libraries here!
-#)
+include(libraries/pico_graphics/pico_graphics)  # load before(!) cosmic_unicorn
+include(libraries/cosmic_unicorn/cosmic_unicorn)
+target_link_libraries(${NAME}
+    pico_graphics
+    cosmic_unicorn
+)
 
 
 # Add in the standard Pico libraries that we will always need.

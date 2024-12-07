@@ -28,6 +28,20 @@
 #include "opt/config.h"
 #include "opt/httpclient.h"
 
+/* Stuff from pimoroni example */
+
+#include "libraries/pico_graphics/pico_graphics.hpp"
+#include "cosmic_unicorn.hpp"
+
+/* Globals. */
+
+//using namespace pimoroni;
+
+pimoroni::PicoGraphics_PenRGB888 graphics(32, 32, nullptr);
+pimoroni::CosmicUnicorn cosmic_unicorn;
+
+float lifetime[32][32];
+float age[32][32];
 
 /* Functions. */
 
@@ -59,6 +73,8 @@ int main()
   config_t default_config[] = 
   {
     { "BLINK_RATE", "250" },
+    /* NOTE: There's no need to update these here! You can replace them
+     * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
     { "WIFI_SSID", "my_network" },
     { "WIFI_PASSWORD", "my_password" },
     { "", "" }
@@ -78,8 +94,20 @@ int main()
     blink_rate = atoi( blink_rate_string );
   }
 
+  /* Init eighties super computer code. */
+
+  for(int y = 0; y < 32; y++) {
+    for(int x = 0; x < 32; x++) {
+      lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
+      age[x][y] = ((rand() % 100) / 100.0f) * lifetime[x][y];
+    }
+  }
+
+  cosmic_unicorn.init();
+
   /* Set up a simple web request. */
   httpclient_set_credentials( config_get( "WIFI_SSID" ), config_get( "WIFI_PASSWORD" ) );
+  /* BEWARE: TLS-1.3+ might not work */
   http_request = httpclient_open( "https://httpbin.org/get", NULL, 1024 );
 
   /* Enter the main program loop now. */
@@ -114,12 +142,49 @@ int main()
     }
 
     /* The blink is very simple, just toggle the GPIO pin high and low. */
-    printf( "Blinking at a rate of %d ms\n", blink_rate );
+    // printf( "Blinking at a rate of %d ms\n", blink_rate );
+    /*
     cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 1 );
     usbfs_sleep_ms( blink_rate );
 
     cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 0 );
     usbfs_sleep_ms( blink_rate );
+    */
+    
+    if(cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP)) {
+      cosmic_unicorn.adjust_brightness(+0.01);
+    }
+    if(cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN)) {
+      cosmic_unicorn.adjust_brightness(-0.01);
+    }
+
+    graphics.set_pen(0, 0, 0);
+    graphics.clear();
+
+    for(int y = 0; y < 32; y++) {
+      for(int x = 0; x < 32; x++) {
+        if(age[x][y] < lifetime[x][y] * 0.3f) {
+          graphics.set_pen(230, 150, 0);
+          graphics.pixel(pimoroni::Point(x, y));
+        }else if(age[x][y] < lifetime[x][y] * 0.5f) {
+          float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
+          graphics.set_pen(decay * 230, decay * 150, 0);
+          graphics.pixel(pimoroni::Point(x, y));
+        }
+
+        if(age[x][y] >= lifetime[x][y]) {
+          age[x][y] = 0.0f;
+          lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
+        }
+
+        age[x][y] += 0.01f;
+      }
+    }
+
+    cosmic_unicorn.update(&graphics);
+
+    //sleep_ms(10);
+    usbfs_sleep_ms(10);
   }
 
   /* We would never expect to reach an end....! */
