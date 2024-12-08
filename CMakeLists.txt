@@ -25,6 +25,8 @@ pico_sdk_init()
 add_executable(${NAME}
     opt/config.c           # <-- Configuration file handler (optional)
     opt/httpclient.c       # <-- HTTP(S) Client (optional)
+    zabbix/zabbix.cpp
+    zabbix/tiny-json.c
     main.cpp               # <-- Start adding your own code here!
 )
 
@@ -66,6 +68,10 @@ pico_add_extra_outputs(${NAME})
 # Direct stdio to the USB port
 pico_enable_stdio_usb(${NAME} 1)
 pico_enable_stdio_uart(${NAME} 0)
+
+# Debug
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-long-long -pedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-long-long")
 
 # Define what goes into a release; at least the uf2, probably the README and LICENSE
 install(FILES
