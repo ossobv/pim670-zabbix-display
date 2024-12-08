@@ -23,7 +23,7 @@
 #define PCBP_HTTP_TIMEOUT_SECS      10
 
 #define PCBP_HEADER_BUFSIZE         1023
-#define PCBP_REQUEST_USER_AGENT     "Picow Boilerplate HTTP Client v0.1"
+#define PCBP_REQUEST_USER_AGENT     "pim670-zabbix-display"
 
 
 /* Enumerations. */
@@ -62,7 +62,9 @@ typedef struct
   uint16_t              response_length;
   absolute_time_t       wifi_retry_time;
 
-  /* Managing the HTTP response. */
+  /* Managing the HTTP request/response. */
+  char*                 send_buffer;
+  uint16_t              send_buffer_len;
   char                  header_buffer[PCBP_HEADER_BUFSIZE+1];
   uint16_t              http_status;
   uint16_t              content_length;
@@ -80,7 +82,15 @@ extern "C" {
 #endif
 
 void                  httpclient_set_credentials( const char *, const char * );
-httpclient_request_t *httpclient_open( const char *, char *, uint16_t );
+httpclient_request_t *httpclient_open2( const char *p_method, const char *p_url,
+                                        char *p_buffer, uint16_t p_buffer_size,
+                                        const char *p_extra_headers,
+				        const char *p_data );
+inline httpclient_request_t *httpclient_open( const char *p_url,
+                                              char *p_buffer,
+                                              uint16_t p_buffer_size) {
+    return httpclient_open2( "GET", p_url, p_buffer, p_buffer_size, "", "" );
+}
 httpclient_status_t   httpclient_check( httpclient_request_t * );
 const char           *httpclient_get_response( const httpclient_request_t * );
 void                  httpclient_close( httpclient_request_t * );

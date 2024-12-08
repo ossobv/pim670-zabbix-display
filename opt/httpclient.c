@@ -101,7 +101,6 @@ static err_t httpclient_connect_callback( void *p_request,
                                           struct altcp_pcb *p_pcb, err_t p_err )
 {
   httpclient_request_t *l_request = (httpclient_request_t *)p_request;
-  int                   l_buflen;
   err_t                 l_retval;
 
   /* Check that the error code is clear. */
@@ -114,28 +113,10 @@ static err_t httpclient_connect_callback( void *p_request,
 
   /* Construct our request. */
   l_request->status = HTTPCLIENT_REQUEST;
-  l_buflen = snprintf( 
-    l_request->header_buffer, PCBP_HEADER_BUFSIZE,
-    "GET %s HTTP/1.1\r\n"                               /* URL path */
-    "Host: %s\r\n"                                      /* Request host */
-    "User-Agent: " PCBP_REQUEST_USER_AGENT "\r\n"       /* Our user agent */
-    "Accept: */*\r\n"                                   /* Accept anything */
-    "Connection: Close\r\n"                             /* No persistence */
-    "\r\n",
-    l_request->path, l_request->host
-  );
-
-  /* If that got truncated, we can't send it. Bugger. */
-  if ( l_buflen >= PCBP_HEADER_BUFSIZE )
-  {
-    printf( "Request too long - %d >= %d\n", l_buflen, PCBP_HEADER_BUFSIZE );
-    l_request->status = HTTPCLIENT_FAILED;
-    return httpclient_close_pcb( l_request );
-  }
 
   /* Send it to the remote server. */
-  l_retval = altcp_write( l_request->pcb, l_request->header_buffer, 
-                          l_buflen, TCP_WRITE_FLAG_COPY );
+  l_retval = altcp_write( l_request->pcb, l_request->send_buffer,
+                          l_request->send_buffer_len, TCP_WRITE_FLAG_COPY );
   if ( l_retval != ERR_OK )
   {
     printf( "altcp_write() failed - %d\n", l_retval );
@@ -145,6 +126,10 @@ static err_t httpclient_connect_callback( void *p_request,
 
   /* Ask to send (not sure this is necessary, but...) */
   altcp_output( l_request->pcb );
+
+  /* Free mem we're not using anymore. */
+  free( l_request->send_buffer );
+  l_request->send_buffer = NULL;
 
   /* And so we're waiting on the response code. */
   l_request->status = HTTPCLIENT_RESPONSE_STATUS;
@@ -162,7 +147,7 @@ static err_t httpclient_connect( httpclient_request_t *p_request, ip_addr_t *p_a
 
   /* Fairly simple call into the library call; handle any error. */
   p_request->status = HTTPCLIENT_CONNECT;
-  l_retval = altcp_connect( p_request->pcb, p_addr, 
+  l_retval = altcp_connect( p_request->pcb, p_addr,
                             p_request->port, httpclient_connect_callback );
   if ( l_retval != ERR_OK )
   {
@@ -497,8 +482,12 @@ void httpclient_set_credentials( const char *p_ssid, const char *p_password )
  *        returned. On error, no allocation will be kept and NULL returned.
  */
 
-httpclient_request_t *httpclient_open( const char *p_url, 
-                                       char *p_buffer, uint16_t p_buffer_size )
+httpclient_request_t *httpclient_open2( const char *p_method,
+                                        const char *p_url,
+                                        char *p_buffer,
+                                        uint16_t p_buffer_size,
+                                        const char *p_extra_headers,
+                                        const char *p_data )
 {
   uint_fast8_t          l_index;
   const char           *l_charptr;
@@ -576,6 +565,49 @@ httpclient_request_t *httpclient_open( const char *p_url,
   l_request->response = p_buffer;
   l_request->response_max_size = p_buffer_size;
   l_request->response_allocated = false;
+
+  /* Allocate the request so we don't have to later. */
+  int bufsize = 256;
+  int new_buflen;
+  do {
+    if (!(l_request->send_buffer = (char*)malloc(bufsize))) {
+      printf( "No mem left when trying %d\n", bufsize );
+      free( l_request );
+      return NULL;
+    }
+    new_buflen = snprintf(
+      l_request->send_buffer, bufsize,
+	"%s %s HTTP/1.1\r\n"                                /* URL path */
+	"Host: %s\r\n"                                      /* Request host */
+	"User-Agent: " PCBP_REQUEST_USER_AGENT "\r\n"       /* Our user agent */
+	"Accept: */*\r\n"                                   /* Accept anything */
+	"Connection: close\r\n"                             /* No persistence */
+	"%s"						    /* Optional headers */
+	"\r\n"						    /* End of headers */
+	"%s",						    /* Optional body */
+	p_method, l_request->path, l_request->host,
+	p_extra_headers, p_data
+      );
+    /* Error? */
+    if ( new_buflen < 0 ) {
+      printf( "Error on send_buffer\n" );
+      free( l_request->send_buffer );
+      free( l_request );
+      return NULL;
+    }
+    /* Big enough? */
+    if ( new_buflen == 0 ) {
+      new_buflen == strlen(l_request->send_buffer);
+      break;
+    } else if ( new_buflen < bufsize ) {
+      break;
+    }
+    /* Retry with bigger buffer. */
+    free(l_request->send_buffer);
+    l_request->send_buffer = NULL;
+    bufsize = new_buflen + 1;
+  } while (1);
+  l_request->send_buffer_len = new_buflen;
 
   /* Lastly, see if we have a network; if we do then we can get on with it. */
   if ( cyw43_tcpip_link_status( &cyw43_state, CYW43_ITF_STA ) == CYW43_LINK_UP )
@@ -685,6 +717,13 @@ void httpclient_close( httpclient_request_t *p_request )
   {
     free( p_request->response );
     p_request->response = NULL;
+  }
+
+  /* Free other data. */
+  if ( p_request->send_buffer )
+  {
+    free( p_request->send_buffer );
+    p_request->send_buffer = NULL;
   }
 
   /* Last thing, free the actual request. */
