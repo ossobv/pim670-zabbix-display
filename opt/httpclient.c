@@ -567,8 +567,14 @@ httpclient_request_t *httpclient_open2( const char *p_method,
   l_request->response_allocated = false;
 
   /* Allocate the request so we don't have to later. */
+  char content_length_buf[24];
+  int content_length = strlen(p_data);
   int bufsize = 256;
   int new_buflen;
+  content_length_buf[0] = '\0';
+  if (content_length) {
+    snprintf(content_length_buf, 24, "Content-Length: %d\r\n", content_length);
+  }
   do {
     if (!(l_request->send_buffer = (char*)malloc(bufsize))) {
       printf( "No mem left when trying %d\n", bufsize );
@@ -582,11 +588,11 @@ httpclient_request_t *httpclient_open2( const char *p_method,
 	"User-Agent: " PCBP_REQUEST_USER_AGENT "\r\n"       /* Our user agent */
 	"Accept: */*\r\n"                                   /* Accept anything */
 	"Connection: close\r\n"                             /* No persistence */
-	"%s"						    /* Optional headers */
+	"%s%s"
 	"\r\n"						    /* End of headers */
 	"%s",						    /* Optional body */
 	p_method, l_request->path, l_request->host,
-	p_extra_headers, p_data
+	content_length_buf, p_extra_headers, p_data
       );
     /* Error? */
     if ( new_buflen < 0 ) {
@@ -608,6 +614,9 @@ httpclient_request_t *httpclient_open2( const char *p_method,
     bufsize = new_buflen + 1;
   } while (1);
   l_request->send_buffer_len = new_buflen;
+
+  /* Debug/test.. remove me soon-ish.. */
+  printf( "[[[%s]]] (%d)\n", l_request->send_buffer, l_request->send_buffer_len );
 
   /* Lastly, see if we have a network; if we do then we can get on with it. */
   if ( cyw43_tcpip_link_status( &cyw43_state, CYW43_ITF_STA ) == CYW43_LINK_UP )

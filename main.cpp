@@ -27,11 +27,20 @@
 #include "usbfs.h"
 #include "opt/config.h"
 #include "opt/httpclient.h"
+#include "opt/internals.h"
+
 
 /* Stuff from pimoroni example */
 
 #include "libraries/pico_graphics/pico_graphics.hpp"
 #include "cosmic_unicorn.hpp"
+
+
+/* Our stuff. */
+
+#include <string>
+//#include "zabbix/zabbix.hpp"
+
 
 /* Globals. */
 
@@ -42,6 +51,7 @@ pimoroni::CosmicUnicorn cosmic_unicorn;
 
 float lifetime[32][32];
 float age[32][32];
+
 
 /* Functions. */
 
@@ -77,6 +87,8 @@ int main()
      * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
     { "WIFI_SSID", "my_network" },
     { "WIFI_PASSWORD", "my_password" },
+    { "ZABBIX_API", "http://zabbix.example.com/api_jsonrpc.php" },
+    { "ZABBIX_TOKEN", "abc123" },
     { "", "" }
   };
 
@@ -105,10 +117,22 @@ int main()
 
   cosmic_unicorn.init();
 
+  /* Wait a bit, so we can see all serial output from now on. You may
+   * want to increase BLINK_RATE. */
+  cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 1 );
+  usbfs_sleep_ms( blink_rate );
+  cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 0 );
+
   /* Set up a simple web request. */
   httpclient_set_credentials( config_get( "WIFI_SSID" ), config_get( "WIFI_PASSWORD" ) );
-  /* BEWARE: TLS-1.3+ might not work */
-  http_request = httpclient_open( "https://httpbin.org/get", NULL, 1024 );
+  /* BEWARE: TLS-1.3+ does not work */
+  /* BEWARE: Not all ciphers work (use ECDSA or non-PFS-RSA) */
+  //http_request = httpclient_open( "https://httpbin.org/get", NULL, 1024 );
+  std::string auth_header = std::string("Authorization: Bearer ") + config_get( "ZABBIX_TOKEN" ) + "\r\nContent-Type: application/json-rpc\r\n";
+  std::string req = R"({"jsonrpc":"2.0","method":"problem.get","params":{
+      "output":["eventid","r_eventid","objectid","clock","ns","severity","suppressed","name"],
+      "source": 0, "object": 0, "recent": false, "severities": [5]}, "id": 1})";
+  http_request = httpclient_open2( "POST", config_get( "ZABBIX_API" ), NULL, 1024, auth_header.c_str(), req.c_str() );
 
   /* Enter the main program loop now. */
   while( true )
@@ -135,9 +159,11 @@ int main()
       if ( l_status == HTTPCLIENT_COMPLETE )
       {
         printf( "HTTP response code %d\n", http_request->http_status );
-        printf( "Response:\n%s\n", httpclient_get_response( http_request ) );
+        printf( "Response:\n%.*s\n", http_request->response_length, httpclient_get_response( http_request ) );
+        printf( "Mem free: %lu\n", mem_heap_free() );
         httpclient_close( http_request );
         http_request = NULL;
+        printf( "Mem free: %lu (after closing http)\n", mem_heap_free() );
       }
     }
 
