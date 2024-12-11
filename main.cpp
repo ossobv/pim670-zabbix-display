@@ -60,6 +60,23 @@ int http_status;
 std::string http_response;
 httpclient_request_t *http_request;
 
+class ZabbixAlert {
+public:
+    static ZabbixAlert from_csv(const std::string& s) {
+	/* Not important yet. First when we add "change" transitions
+	 * does this become important. */
+	return ZabbixAlert();
+    }
+    uint32_t clock;
+    uint32_t hostid;
+    uint8_t severity:1;
+    uint8_t suppressed:1;
+    //std::string host;
+    //std::string name;
+};
+
+std::vector<ZabbixAlert> alerts;
+
 
 /* Functions. */
 
@@ -255,9 +272,33 @@ int main()
 	case ST_HANDLE_RESPONSE:
 	    /* Handle response. */
 	    printf("ST_API_RESPONSE (%d): [[[%s]]]\n", http_status, http_response.c_str());
-	    http_response.clear();
-	    app_state = ST_SLEEP;
-	    wait_until = millis() + 10000;
+	    if (http_status == 200)
+	    {
+		// clock;severity;suppressed;hostid;host;name
+		// 1733896822;5;0;12847;node1.example.com;CPU 25+% busy with I/O for >1h on node
+		std::vector<ZabbixAlert> results;
+		for (std::string::size_type i(0), len(http_response.length()), pos(0), row(0); i <= len; i++) {
+		    if (http_response[i] == '\n' || i == len) {
+			if (row && (i - pos)) {
+			    results.push_back(ZabbixAlert::from_csv(http_response.substr(pos, i - pos)));
+			}
+			row++;
+			pos = i + 1;
+		    }
+		}
+		http_response.clear();
+		// wiping.. no transitions yet..
+		alerts = results;
+		//alerts.assign(results.begin(), results.end());
+		app_state = ST_TRANSITION;
+	    }
+	    else
+	    {
+		/* sucks to be you.. */
+		http_response.clear();
+		app_state = ST_SLEEP;
+		wait_until = millis() + 10000;
+	    }
 	    break;
 
 	case ST_TRANSITION:
@@ -301,6 +342,29 @@ int main()
 		    lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
 		}
 		age[x][y] += 0.01f;
+	    }
+	}
+
+	/* Update ZabbixAlerts on display. */
+	const int block_size = 16;
+	int alerts_to_show = alerts.size();
+	for (int x = 0; x < 32; x += block_size) {
+	    for (int y = 0; y < 32; y += block_size) {
+		if (alerts_to_show) {
+		    int w;
+		    for (w = x; w < x + block_size - 1; ++w) {
+			graphics.set_pen(255, 0, 0);
+			for (int h = y; h < y + block_size - 1; ++h) {
+			    graphics.pixel(pimoroni::Point(w, h));
+			}
+			graphics.set_pen(64, 0, 0);
+			graphics.pixel(pimoroni::Point(w, y + block_size - 1));
+		    }
+		    for (int h = y; h < y + block_size; ++h) {
+			graphics.pixel(pimoroni::Point(w, h));
+		    }
+		    alerts_to_show -= 1;
+		}
 	    }
 	}
 
