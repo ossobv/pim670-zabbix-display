@@ -1,13 +1,5 @@
 /*
- * main.cpp - part of the PicoW C/C++ Boilerplate Project
- *
- * This file defines the main() function, the entrypoint for your program.
- *
- * After the general setup, it simply blinks the LED on your PicoW as the
- * traditional 'Hello World' of the Pico!
- *
- * Copyright (C) 2023 Pete Favelle <ahnlak@ahnlak.com>
- * This file is released under the BSD 3-Clause License; see LICENSE for details.
+ * main.cpp - part of PIM670 Zabbix Display
  */
 
 /* Standard header files. */
@@ -39,12 +31,17 @@
 /* Our stuff. */
 
 #include <string>
-//#include "zabbix/zabbix.hpp"
 
 
 /* Globals. */
 
-//using namespace pimoroni;
+typedef enum States {
+    ST_DO_REQUEST = 0,
+    ST_WAIT_RESPONSE,
+    ST_HANDLE_RESPONSE,
+    ST_TRANSITION,
+    ST_SLEEP
+} State;
 
 pimoroni::PicoGraphics_PenRGB888 graphics(32, 32, nullptr);
 pimoroni::CosmicUnicorn cosmic_unicorn;
@@ -52,169 +49,267 @@ pimoroni::CosmicUnicorn cosmic_unicorn;
 float lifetime[32][32];
 float age[32][32];
 
+State app_state;
+int http_state;
+uint32_t wait_until;
+
+int blink_rate = 250;
+std::string trigger_url;
+std::string auth_header;
+int http_status;
+std::string http_response;
+httpclient_request_t *http_request;
+
 
 /* Functions. */
 
-/*
- * main() - the entrypoint of the application; this is what runs when the PicoW
- *          starts up, and would never normally exit.
- */
+uint32_t millis()
+{
+    return to_ms_since_boot(get_absolute_time());
+}
+
+
+int is_after(uint32_t until)
+{
+    return (int32_t)(until - millis()) < 0;
+}
+
+
+void update_from_config()
+{
+    /* This indicates the configuration has changed - handle it if required. */
+    const char* value_str;
+    int value;
+    if ((value_str = config_get("BLINK_RATE")) != NULL &&
+	    (value = atoi(value_str)) > 0)
+    {
+	blink_rate = value;
+    }
+    /* Switch to potentially new WiFi credentials. */
+    httpclient_set_credentials(config_get("WIFI_SSID"), config_get("WIFI_PASSWORD"));
+    /* Switch to potentially new ZABBIX API and TOKEN. */
+    trigger_url = std::string(config_get("ZABBIX_API" )) + "?a=v0.1/triggers";
+    auth_header = std::string("Authorization: Bearer ") + config_get("ZABBIX_TOKEN") + "\r\n";
+}
+
 
 int main()
 {
-  int blink_rate = 250;
-  httpclient_request_t *http_request;
+    /* Initialise stdio handling. */
+    stdio_init_all();
 
-
-  /* Initialise stdio handling. */
-  stdio_init_all();
-
-  /* Initialise the WiFi chipset. */
-  if ( cyw43_arch_init() )
-  {
-    printf( "Failed to initialise the WiFI chipset (cyw43)\n" );
-    return 1;
-  }
-
-  /* And the USB handling. */
-  usbfs_init();
-
-  /* Declare some default configuration details. */
-  config_t default_config[] = 
-  {
-    { "BLINK_RATE", "250" },
-    /* NOTE: There's no need to update these here! You can replace them
-     * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
-    { "WIFI_SSID", "my_network" },
-    { "WIFI_PASSWORD", "my_password" },
-    { "ZABBIX_API", "http://zabbix.example.com/api_jsonrpc.php" },
-    { "ZABBIX_TOKEN", "abc123" },
-    { "", "" }
-  };
-
-  /* Set up the initial load of the configuration file. */
-  config_load( "config.txt", default_config, 10 );
-
-  /* Save it straight out, to preserve any defaults we put there. */
-  config_save();
-
-  /* See if we have a blink rate in there. */
-  const char *blink_rate_string = config_get( "BLINK_RATE" );
-  if ( ( blink_rate_string != NULL ) &&
-       ( atoi( blink_rate_string ) > 0 ) )
-  {
-    blink_rate = atoi( blink_rate_string );
-  }
-
-  /* Init eighties super computer code. */
-
-  for(int y = 0; y < 32; y++) {
-    for(int x = 0; x < 32; x++) {
-      lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
-      age[x][y] = ((rand() % 100) / 100.0f) * lifetime[x][y];
-    }
-  }
-
-  cosmic_unicorn.init();
-
-  /* Wait a bit, so we can see all serial output from now on. You may
-   * want to increase BLINK_RATE. */
-  cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 1 );
-  usbfs_sleep_ms( blink_rate );
-  cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 0 );
-
-  /* Set up a simple web request. */
-  httpclient_set_credentials( config_get( "WIFI_SSID" ), config_get( "WIFI_PASSWORD" ) );
-  /* BEWARE: TLS-1.3+ does not work */
-  /* BEWARE: Not all ciphers work (use ECDSA or non-PFS-RSA) */
-  //http_request = httpclient_open( "https://httpbin.org/get", NULL, 1024 );
-  std::string auth_header = std::string("Authorization: Bearer ") + config_get( "ZABBIX_TOKEN" ) + "\r\nContent-Type: application/json-rpc\r\n";
-  std::string req = R"({"jsonrpc":"2.0","method":"problem.get","params":{
-      "output":["eventid","r_eventid","objectid","clock","ns","severity","suppressed","name"],
-      "source": 0, "object": 0, "recent": false, "severities": [5]}, "id": 1})";
-  http_request = httpclient_open2( "POST", config_get( "ZABBIX_API" ), NULL, 1024, auth_header.c_str(), req.c_str() );
-
-  /* Enter the main program loop now. */
-  while( true )
-  {
-    /* Monitor the configuration file. */
-    if ( config_check() )
+    /* Initialise the WiFi chipset. */
+    if (cyw43_arch_init())
     {
-      /* This indicates the configuration has changed - handle it if required. */
-      blink_rate_string = config_get( "BLINK_RATE" );
-      if ( ( blink_rate_string != NULL ) &&
-           ( atoi( blink_rate_string ) > 0 ) )
-      {
-        blink_rate = atoi( blink_rate_string );
-      }
-
-      /* Switch to potentially new WiFi credentials. */
-      httpclient_set_credentials( config_get( "WIFI_SSID" ), config_get( "WIFI_PASSWORD" ) );
+	printf( "Failed to initialise the WiFI chipset (cyw43)\n" );
+	return 1;
     }
 
-    /* Service the http request, if still active. */
-    if ( http_request != NULL )
+    /* And the USB handling. */
+    usbfs_init();
+
+    /* Declare some default configuration details. */
+    config_t default_config[] = {
+	/* NOTE: We (ab)use the BLINK_RATE for a delay during startup. That way
+	 * way we can attach a serial console in time and check debug info. */
+	{"BLINK_RATE", "3000"},
+	/* NOTE: There's no need to update these here! You can replace them
+	 * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
+	{"WIFI_SSID", "my_network"},
+	{"WIFI_PASSWORD", "my_password"},
+	/* NOTE: We need a separate api_csv.php, as the api_jsonrpc.php requires
+	 * multiple calls.
+	 * NOTE: The TLS handler does not support TLS 1.3, so the side needs 1.2
+	 * or lower.
+	 * NOTE: If the site has PFS the certificate needs to be ECDSA. For RSA
+	 * RSA we'd need a cipher without DHE. */
+	{"ZABBIX_API", "http://zabbix.example.com/api_csv.php"},
+	/* NOTE: 64 char Zabbix API token. */
+	{"ZABBIX_TOKEN", "abc123"},
+	{"", ""}
+    };
+
+    /* Set up the initial load of the configuration file. */
+    config_load("config.txt", default_config, 10);
+
+    /* Save it straight out, to preserve any defaults we put there. */
+    config_save();
+
+    /* Get initial configuration. */
+    update_from_config();
+
+    /* Init eighties super computer code. */
+    for (int y = 0; y < 32; ++y) {
+	for (int x = 0; x < 32; ++x) {
+	    lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
+	    age[x][y] = ((rand() % 100) / 100.0f) * lifetime[x][y];
+	}
+    }
+
+    /* Init display (and serial port?). */
+    cosmic_unicorn.init();
+
+    /* Wait a bit. This sleep allows you to attach a serial console
+     * (ttyACM0) to get debug info from the start. */
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);  /* enable PicoW LED */
+    usbfs_sleep_ms(blink_rate);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);  /* disable PicoW LED */
+
+    /* Enter the main program loop now. */
+    while (true)
     {
-      httpclient_status_t l_status = httpclient_check( http_request );
-      if ( l_status == HTTPCLIENT_COMPLETE )
-      {
-        printf( "HTTP response code %d\n", http_request->http_status );
-        printf( "Response:\n%.*s\n", http_request->response_length, httpclient_get_response( http_request ) );
-        printf( "Mem free: %lu\n", mem_heap_free() );
-        httpclient_close( http_request );
-        http_request = NULL;
-        printf( "Mem free: %lu (after closing http)\n", mem_heap_free() );
-      }
+	/* Monitor the configuration file and update vars */
+	if (config_check())
+	{
+	    update_from_config();
+	}
+
+	/* Handle state change */
+	switch (app_state) {
+	case ST_DO_REQUEST:
+	    /* Set up the API request. */
+	    app_state = ST_WAIT_RESPONSE;
+	    if (http_request == NULL)
+	    {
+		http_request = httpclient_open2("GET", trigger_url.c_str(), NULL, 1024, auth_header.c_str(), NULL);
+	    }
+	    else
+	    {
+		printf("BUG: ST_DO_REQUEST: why is http_request non-zero?\n");
+	    }
+	    break;
+
+	case ST_WAIT_RESPONSE:
+	    /* Check API response. */
+	    if (http_request)
+	    {
+		httpclient_status_t new_http_state = httpclient_check(http_request);
+		switch (new_http_state) {
+		case HTTPCLIENT_NONE:
+		case HTTPCLIENT_WIFI_INIT:
+                case HTTPCLIENT_WIFI:
+		    if (new_http_state != http_state)
+		    {
+			printf("HTTPCLIENT_* state change %d -> %d (no timeout)\n", http_state, new_http_state);
+		    }
+		    break;
+                case HTTPCLIENT_DNS:
+		case HTTPCLIENT_CONNECT: /* blame TLS for long waits/stall here! */
+		case HTTPCLIENT_REQUEST:
+		case HTTPCLIENT_RESPONSE_STATUS:
+		case HTTPCLIENT_HEADERS:
+		case HTTPCLIENT_DATA:
+		    if (http_state == HTTPCLIENT_DNS ||
+			    http_state == HTTPCLIENT_CONNECT ||
+			    http_state == HTTPCLIENT_REQUEST ||
+			    http_state == HTTPCLIENT_RESPONSE_STATUS ||
+			    http_state == HTTPCLIENT_HEADERS ||
+			    http_state == HTTPCLIENT_DATA)
+		    {
+			if (is_after(wait_until))
+			{
+			    printf("HTTPCLIENT_* timeout\n");
+			    http_status = 408; /* TIMEOUT */
+			    app_state = ST_HANDLE_RESPONSE;
+			}
+		    }
+		    if (new_http_state != http_state)
+		    {
+			printf("HTTPCLIENT_* state change %d -> %d\n", http_state, new_http_state);
+			wait_until = millis() + 15000; /* set max http timeout to 15s */
+		    }
+		    break;
+		case HTTPCLIENT_COMPLETE:
+		    printf("HTTPCLIENT_COMPLETE response code %d\n", http_request->http_status);
+		    http_status = http_request->http_status;
+		    http_response = std::string(httpclient_get_response(http_request), http_request->response_length);
+		    printf("Response: [[[%s]]]\n", http_response.c_str());
+		    printf("Mem free: %lu\n", mem_heap_free());
+		    httpclient_close(http_request);
+		    http_request = NULL;
+		    printf("Mem free: %lu (after closing http)\n", mem_heap_free());
+		    app_state = ST_HANDLE_RESPONSE;
+		    break;
+		case HTTPCLIENT_TRUNCATED:
+		    printf("HTTPCLIENT_TRUNCATED response code %d\n", http_request->http_status);
+		    http_status = 499;
+		    httpclient_close(http_request);
+		    http_request = NULL;
+		    app_state = ST_HANDLE_RESPONSE;
+		case HTTPCLIENT_FAILED:
+		    printf("HTTPCLIENT_FAILED response code %d\n", http_request->http_status);
+		    http_status = 0;
+		    httpclient_close(http_request);
+		    http_request = NULL;
+		    app_state = ST_HANDLE_RESPONSE;
+		    break;
+		}
+		http_state = new_http_state;
+	    }
+	    else
+	    {
+		printf("BUG: ST_API_REQUEST: why is http_request zero?\n");
+	    }
+	    break;
+
+	case ST_HANDLE_RESPONSE:
+	    /* Handle response. */
+	    printf("ST_API_RESPONSE (%d): [[[%s]]]\n", http_status, http_response.c_str());
+	    http_response.clear();
+	    app_state = ST_SLEEP;
+	    wait_until = millis() + 10000;
+	    break;
+
+	case ST_TRANSITION:
+	    /* Only called if we're showing a change. */
+	    /* NOT IMPLEMENTED YET */
+	    app_state = ST_SLEEP;
+	    wait_until = millis() + 10000;
+
+	case ST_SLEEP:
+	    if (is_after(wait_until))
+	    {
+		app_state = ST_DO_REQUEST;
+	    }
+	    break;
+	}
+
+	/* Monitor +/- buttons. */
+	if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP)) {
+	    cosmic_unicorn.adjust_brightness(+0.01);
+	}
+	if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN )) {
+	    cosmic_unicorn.adjust_brightness(-0.01);
+	}
+
+	graphics.set_pen(0, 0, 0);
+	graphics.clear();
+
+	/* Update eighties super computer. */
+	for (int y = 0; y < 32; ++y) {
+	    for (int x = 0; x < 32; ++x) {
+		if (age[x][y] < lifetime[x][y] * 0.3f) {
+		    graphics.set_pen(230, 150, 0);
+		    graphics.pixel(pimoroni::Point(x, y));
+		} else if(age[x][y] < lifetime[x][y] * 0.5f) {
+		    float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
+		    graphics.set_pen(decay * 230, decay * 150, 0);
+		    graphics.pixel(pimoroni::Point(x, y));
+		}
+		if (age[x][y] >= lifetime[x][y]) {
+		    age[x][y] = 0.0f;
+		    lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
+		}
+		age[x][y] += 0.01f;
+	    }
+	}
+
+	/* Update display and sleep a bit. */
+	cosmic_unicorn.update(&graphics);
+	usbfs_sleep_ms(10);  /* instead of sleep_ms(10); */
     }
 
-    /* The blink is very simple, just toggle the GPIO pin high and low. */
-    // printf( "Blinking at a rate of %d ms\n", blink_rate );
-    /*
-    cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 1 );
-    usbfs_sleep_ms( blink_rate );
-
-    cyw43_arch_gpio_put( CYW43_WL_GPIO_LED_PIN, 0 );
-    usbfs_sleep_ms( blink_rate );
-    */
-    
-    if(cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP)) {
-      cosmic_unicorn.adjust_brightness(+0.01);
-    }
-    if(cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN)) {
-      cosmic_unicorn.adjust_brightness(-0.01);
-    }
-
-    graphics.set_pen(0, 0, 0);
-    graphics.clear();
-
-    for(int y = 0; y < 32; y++) {
-      for(int x = 0; x < 32; x++) {
-        if(age[x][y] < lifetime[x][y] * 0.3f) {
-          graphics.set_pen(230, 150, 0);
-          graphics.pixel(pimoroni::Point(x, y));
-        }else if(age[x][y] < lifetime[x][y] * 0.5f) {
-          float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
-          graphics.set_pen(decay * 230, decay * 150, 0);
-          graphics.pixel(pimoroni::Point(x, y));
-        }
-
-        if(age[x][y] >= lifetime[x][y]) {
-          age[x][y] = 0.0f;
-          lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
-        }
-
-        age[x][y] += 0.01f;
-      }
-    }
-
-    cosmic_unicorn.update(&graphics);
-
-    //sleep_ms(10);
-    usbfs_sleep_ms(10);
-  }
-
-  /* We would never expect to reach an end....! */
-  return 0;
+    /* We never get here. */
+    __builtin_unreachable();
+    return 0;
 }
-
-/* End of file main.cpp */
