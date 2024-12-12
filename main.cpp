@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <cmath> // for std::ceil
 
 /* SDK header files. */
 
@@ -346,10 +346,23 @@ int main()
         }
 
         /* Update ZabbixAlerts on display. */
-        const int block_size = 16;
         int alerts_to_show = alerts.size();
-        for (int x = 0; x < 32; x += block_size) {
-            for (int y = 0; y < 32; y += block_size) {
+        /* Calculate scaling row and col size*/
+        float alert_sqrt = sqrt(alerts_to_show);
+        int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
+        /* minimum of 4 blocks*/
+        if (row_col_size == 1) {
+            row_col_size = 2;
+        }
+        int block_size = 32 / row_col_size;
+        /* calculate offset
+        example: when showing 9 alerts we want 1 pixel on all 4 sides.
+        not 2 left 2 below*/
+        int empty_pixels = 32 - (row_col_size * block_size);
+
+        /* write pixels*/
+        for (int x = empty_pixels / 2; x < block_size * row_col_size; x += block_size) {
+            for (int y = empty_pixels / 2; y < block_size * row_col_size; y += block_size) {
                 if (alerts_to_show) {
                     int w;
                     for (w = x; w < x + block_size - 1; ++w) {
