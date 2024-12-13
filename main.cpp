@@ -90,11 +90,16 @@ class ZabbixAlert {
         static ZabbixAlert from_csv(const std::string& s) {
             /* example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message> */
             std::vector<std::string> result = split(s);
-            return ZabbixAlert(
-                static_cast<uint32_t>(std::stoul(result[0])),
-                static_cast<uint32_t>(std::stoul(result[3])),
-                static_cast<uint8_t>(std::stoul(result[1])),
-                static_cast<uint8_t>(std::stoul(result[2])));
+            if (result.size() == 6) {
+                return ZabbixAlert(
+                    static_cast<uint32_t>(std::stoul(result[0])),
+                    static_cast<uint32_t>(std::stoul(result[3])),
+                    static_cast<uint8_t>(std::stoul(result[1])),
+                    static_cast<uint8_t>(std::stoul(result[2])));
+            } else {
+                // No data
+                return ZabbixAlert(0, 0, 0, 0);
+            }
         }
         uint32_t clock;
         uint32_t hostid;
@@ -314,7 +319,9 @@ int main()
                             }
                             break;
                         case HTTPCLIENT_COMPLETE:
-                            printf("HTTPCLIENT_COMPLETE response code %d\n", http_request->http_status);
+                        case HTTPCLIENT_TRUNCATED:
+                            // FIXME: do something with truncated response?
+                            printf("HTTPCLIENT_COMPLETE? (%d) response code %d\n", new_http_state, http_request->http_status);
                             http_status = http_request->http_status;
                             http_response = std::string(httpclient_get_response(http_request), http_request->response_length);
                             printf("Response: [[[%s]]]\n", http_response.c_str());
@@ -322,15 +329,11 @@ int main()
                             httpclient_close(http_request);
                             http_request = NULL;
                             printf("Mem free: %lu (after closing http)\n", mem_heap_free());
-                            last_update = millis();
+                            if (new_http_state == HTTPCLIENT_COMPLETE) {
+                                last_update = millis();
+                            }
                             app_state = ST_HANDLE_RESPONSE;
                             break;
-                        case HTTPCLIENT_TRUNCATED:
-                            printf("HTTPCLIENT_TRUNCATED response code %d\n", http_request->http_status);
-                            http_status = 499;
-                            httpclient_close(http_request);
-                            http_request = NULL;
-                            app_state = ST_HANDLE_RESPONSE;
                         case HTTPCLIENT_FAILED:
                             printf("HTTPCLIENT_FAILED response code %d\n", http_request->http_status);
                             http_status = 0;

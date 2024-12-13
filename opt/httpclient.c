@@ -220,6 +220,8 @@ static err_t httpclient_recv_callback( void *p_request, struct altcp_pcb *p_pcb,
 
   if ( l_request->status == HTTPCLIENT_HEADERS )
   {
+    l_request->content_length = (uint16_t)-1;
+
     /*
      * A status of HEADERS means we have a response code, so now we wait
      * to receive the whole header block.
@@ -250,7 +252,7 @@ static err_t httpclient_recv_callback( void *p_request, struct altcp_pcb *p_pcb,
       }
 
       /* Check we have a content length; if not, we're not going to get far. */
-      if ( l_request->content_length == 0 )
+      if ( l_request->content_length == (uint16_t)-1 )
       {
         printf( "Content-length not received\n" );
         l_request->status = HTTPCLIENT_FAILED;
