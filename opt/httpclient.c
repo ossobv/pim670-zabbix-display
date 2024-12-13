@@ -5,7 +5,7 @@
  * This is provided as part of the boilerplate, but if you don't require it
  * (or have built your own) you can safely delete this file (and httpclient.c)
  * and remove it from your CMakeLists.txt file.
- * 
+ *
  * Copyright (C) 2023 Pete Favelle <ahnlak@ahnlak.com>
  * This file is released under the BSD 3-Clause License; see LICENSE for details.
  */
@@ -48,7 +48,7 @@ static char         m_wifi_password[PCBP_HTTP_PASSWORD_MAXLEN+1];
  *                      don't have any external declarations to define them
  *                      before use.
  */
- 
+
 
 /*
  * close_pcb - shuts down and de-allocates the pcb; this ends the network
@@ -97,7 +97,7 @@ static err_t httpclient_close_pcb( httpclient_request_t *p_request )
  * connect_callback - called once the connection is established.
  */
 
-static err_t httpclient_connect_callback( void *p_request, 
+static err_t httpclient_connect_callback( void *p_request,
                                           struct altcp_pcb *p_pcb, err_t p_err )
 {
   httpclient_request_t *l_request = (httpclient_request_t *)p_request;
@@ -336,7 +336,7 @@ static err_t httpclient_recv_callback( void *p_request, struct altcp_pcb *p_pcb,
 
 /*
  * poll_callback - called after a timeout period within lwIP, to allow us to
- *                 abort if things are taking too long. 
+ *                 abort if things are taking too long.
  */
 
 static err_t httpclient_poll_callback( void *p_request, struct altcp_pcb *p_pcb )
@@ -363,7 +363,7 @@ static void httpclient_err_callback( void *p_request, err_t p_error )
   httpclient_close_pcb( l_request );
 
   /* No return code here. */
-  return;  
+  return;
 }
 
 
@@ -372,7 +372,7 @@ static void httpclient_err_callback( void *p_request, err_t p_error )
  *                this is where we initiate the connection.
  */
 
-void httpclient_dns_callback( const char *p_name, 
+void httpclient_dns_callback( const char *p_name,
                               const ip_addr_t *p_address, void *p_request )
 {
   httpclient_request_t *l_request = (httpclient_request_t *)p_request;
@@ -433,7 +433,7 @@ static void httpclient_start_request( httpclient_request_t *p_request )
   /* Now we lookup the hostname in DNS - lwIP functions need wrapping. */
   p_request->status = HTTPCLIENT_DNS;
   cyw43_arch_lwip_begin();
-  l_retval = dns_gethostbyname( p_request->host, &p_request->host_addr, 
+  l_retval = dns_gethostbyname( p_request->host, &p_request->host_addr,
                                 httpclient_dns_callback, p_request );
   cyw43_arch_lwip_end();
 
@@ -479,7 +479,7 @@ void httpclient_set_credentials( const char *p_ssid, const char *p_password )
 
 /*
  * open - initiates a new HTTP request; if the WiFi is not available, it will
- *        be brought up with credentials if available. 
+ *        be brought up with credentials if available.
  *        A new request structure will be allocated, and a pointer to this is
  *        returned. On error, no allocation will be kept and NULL returned.
  */
@@ -585,16 +585,17 @@ httpclient_request_t *httpclient_open2( const char *p_method,
     }
     new_buflen = snprintf(
       l_request->send_buffer, bufsize,
-	"%s %s HTTP/1.1\r\n"                                /* URL path */
-	"Host: %s\r\n"                                      /* Request host */
-	"User-Agent: " PCBP_REQUEST_USER_AGENT "\r\n"       /* Our user agent */
-	"Accept: */*\r\n"                                   /* Accept anything */
-	"Connection: close\r\n"                             /* No persistence */
-	"%s%s"
-	"\r\n"						    /* End of headers */
-	"%s",						    /* Optional body */
-	p_method, l_request->path, l_request->host,
-	content_length_buf, p_extra_headers, p_data
+      "%s %s HTTP/1.1\r\n"                                /* URL path */
+      "Host: %s\r\n"                                      /* Request host */
+      // FIXME: add our git version here?
+      "User-Agent: " PCBP_REQUEST_USER_AGENT "\r\n"       /* Our user agent */
+      "Accept: */*\r\n"                                   /* Accept anything */
+      "Connection: close\r\n"                             /* No persistence */
+      "%s%s"
+      "\r\n"                                              /* End of headers */
+      "%s",                                               /* Optional body */
+      p_method, l_request->path, l_request->host,
+      content_length_buf, p_extra_headers, p_data
       );
     /* Error? */
     if ( new_buflen < 0 ) {
@@ -664,12 +665,12 @@ httpclient_status_t httpclient_check( httpclient_request_t *p_request )
     l_link_status = cyw43_tcpip_link_status( &cyw43_state, CYW43_ITF_STA );
 
     /* If it's a setup failure, flag it to re-attempt after a timeout. */
-    if ( ( l_link_status == CYW43_LINK_FAIL ) || 
+    if ( ( l_link_status == CYW43_LINK_FAIL ) ||
          ( l_link_status == CYW43_LINK_BADAUTH ) ||
          ( l_link_status == CYW43_LINK_NONET ) )
     {
       /* Set a timer to retry after a period. */
-      printf( "CYW43: WiFi login failed (%d), retrying in %d seconds\n", 
+      printf( "CYW43: WiFi login failed (%d), retrying in %d seconds\n",
               l_link_status, PCBP_HTTP_WIFI_RETRY_MS / 1000 );
       p_request->wifi_retry_time = make_timeout_time_ms( PCBP_HTTP_WIFI_RETRY_MS );
       p_request->status = HTTPCLIENT_WIFI_INIT;
@@ -684,12 +685,12 @@ httpclient_status_t httpclient_check( httpclient_request_t *p_request )
   }
 
   /* Also, check if there's a retry on the WiFi connection required. */
-  if ( ( p_request->status == HTTPCLIENT_WIFI_INIT ) && 
+  if ( ( p_request->status == HTTPCLIENT_WIFI_INIT ) &&
        ( time_reached( p_request->wifi_retry_time ) ) )
   {
     cyw43_arch_enable_sta_mode();
     cyw43_arch_wifi_connect_async( m_wifi_ssid, m_wifi_password, CYW43_AUTH_WPA2_AES_PSK );
-    p_request->status = HTTPCLIENT_WIFI;    
+    p_request->status = HTTPCLIENT_WIFI;
   }
 
   /* Lastly, return the status contained within the request. */
