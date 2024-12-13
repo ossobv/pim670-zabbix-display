@@ -12,6 +12,7 @@
 
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
+#include "hardware/watchdog.h"
 
 
 /* Local header files. */
@@ -35,6 +36,9 @@
 
 /* Globals. */
 
+using pimoroni::Point;
+using pimoroni::Rect;
+
 typedef enum States {
     ST_DO_REQUEST = 0,
     ST_WAIT_RESPONSE,
@@ -53,9 +57,11 @@ State app_state;
 int http_state;
 uint32_t wait_until;
 
-int blink_rate = 250;
+int boot_delay;
+int watchdog_timer;
 std::string trigger_url;
 std::string auth_header;
+
 int http_status;
 std::string http_response;
 httpclient_request_t *http_request;
@@ -135,10 +141,20 @@ void update_from_config()
     /* This indicates the configuration has changed - handle it if required. */
     const char* value_str;
     int value;
-    if ((value_str = config_get("BLINK_RATE")) != NULL &&
-            (value = atoi(value_str)) > 0)
+    if ((value_str = config_get("BOOT_DELAY")) != NULL &&
+            (value = atoi(value_str)) >= 0)
     {
-        blink_rate = value;
+        boot_delay = value;
+    }
+    /* Watchdog timer. Between 0 and 8000 ms. */
+    watchdog_timer = 5000;
+    if ((value_str = config_get("WATCHDOG_TIMER")) != NULL &&
+            (value = atoi(value_str)) >= 0)
+    {
+        if (value > 8000) {
+            value = 8000;
+        }
+        watchdog_timer = value;
     }
     /* Switch to potentially new WiFi credentials. */
     httpclient_set_credentials(config_get("WIFI_SSID"), config_get("WIFI_PASSWORD"));
@@ -165,9 +181,12 @@ int main()
 
     /* Declare some default configuration details. */
     config_t default_config[] = {
-        /* NOTE: We (ab)use the BLINK_RATE for a delay during startup. That way
+        /* NOTE: We use the BOOT_DELAY for a delay during startup. That way
          * way we can attach a serial console in time and check debug info. */
-        {"BLINK_RATE", "3000"},
+        {"BOOT_DELAY", "0"},
+        /* While the HTTP code is flaky, we use the watchdog to restart.
+         * This is limited to 8388 ms. We'll cap it to 8000 ms. */
+        {"WATCHDOG_TIMER", "8000"},
         /* NOTE: There's no need to update these here! You can replace them
          * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
         {"WIFI_SSID", "my_network"},
@@ -206,9 +225,31 @@ int main()
 
     /* Wait a bit. This sleep allows you to attach a serial console
      * (ttyACM0) to get debug info from the start. */
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);  /* enable PicoW LED */
-    usbfs_sleep_ms(blink_rate);
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);  /* disable PicoW LED */
+    if (boot_delay) {
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);  /* enable PicoW LED */
+        usbfs_sleep_ms(boot_delay);
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);  /* disable PicoW LED */
+    }
+
+    /* Notify why we started */
+    if (watchdog_caused_reboot()) {
+        printf("Rebooted by Watchdog!\n");
+        for (int i = 0; i < 5; ++i) {
+            for (int lightness = 1; lightness >= 0; --lightness) {
+                graphics.set_pen(graphics.create_pen_hsv(0.333, 1.0, (float)lightness)); // green
+                graphics.rectangle(Rect(0, 0, 32, 32));
+                cosmic_unicorn.update(&graphics);
+                usbfs_sleep_ms(200);
+            }
+        }
+    } else {
+        printf("Clean boot\n");
+    }
+
+    /* Enable watchdog */
+    if (watchdog_timer) {
+        watchdog_enable(watchdog_timer, 0);  // should kick in after 5s
+    }
 
     /* Enter the main program loop now. */
     while (true)
@@ -375,11 +416,11 @@ int main()
             for (int x = 0; x < 32; ++x) {
                 if (age[x][y] < lifetime[x][y] * 0.3f) {
                     graphics.set_pen(230, 150, 0);
-                    graphics.pixel(pimoroni::Point(x, y));
+                    graphics.pixel(Point(x, y));
                 } else if(age[x][y] < lifetime[x][y] * 0.5f) {
                     float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
                     graphics.set_pen(decay * 230, decay * 150, 0);
-                    graphics.pixel(pimoroni::Point(x, y));
+                    graphics.pixel(Point(x, y));
                 }
                 if (age[x][y] >= lifetime[x][y]) {
                     age[x][y] = 0.0f;
@@ -412,13 +453,13 @@ int main()
                     for (w = x; w < x + block_size - 1; ++w) {
                         graphics.set_pen(255, 0, 0);
                         for (int h = y; h < y + block_size - 1; ++h) {
-                            graphics.pixel(pimoroni::Point(w, h));
+                            graphics.pixel(Point(w, h));
                         }
                         graphics.set_pen(64, 0, 0);
-                        graphics.pixel(pimoroni::Point(w, y + block_size - 1));
+                        graphics.pixel(Point(w, y + block_size - 1));
                     }
                     for (int h = y; h < y + block_size; ++h) {
-                        graphics.pixel(pimoroni::Point(w, h));
+                        graphics.pixel(Point(w, h));
                     }
                     alerts_to_show -= 1;
                 }
@@ -428,6 +469,9 @@ int main()
         /* Update display and sleep a bit. */
         cosmic_unicorn.update(&graphics);
         usbfs_sleep_ms(10);  /* instead of sleep_ms(10); */
+
+        /* Update watchdog. */
+        watchdog_update();
     }
 
     /* We never get here. */
