@@ -239,7 +239,7 @@ int main()
         printf("Rebooted by Watchdog!\n");
         for (int i = 0; i < 5; ++i) {
             for (int lightness = 1; lightness >= 0; --lightness) {
-                graphics.set_pen(graphics.create_pen_hsv(0.25, 1.0, (float)lightness)); // orange
+                graphics.set_pen(graphics.create_pen_hsv(0.083, 1.0, (float)lightness)); // orange
                 graphics.rectangle(Rect(0, 0, 32, 32));
                 cosmic_unicorn.update(&graphics);
                 usbfs_sleep_ms(200);
@@ -355,7 +355,8 @@ int main()
                     // clock;severity;suppressed;hostid;host;name
                     // 1733896822;5;0;12847;node1.example.com;CPU 25+% busy with I/O for >1h on node
                     std::vector<ZabbixAlert> results;
-                    for (std::string::size_type i(0), len(http_response.length()), pos(0), row(0); i <= len; i++) {
+                    // if there are 225 rows, we have 15*15 pixels, which is the limit
+                    for (std::string::size_type i(0), len(http_response.length()), pos(0), row(0); i <= len && row <= 225; i++) {
                         if (http_response[i] == '\n' || i == len) {
                             if (row && (i - pos)) {
                                 results.push_back(ZabbixAlert::from_csv(http_response.substr(pos, i - pos)));
@@ -410,6 +411,18 @@ int main()
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
+        /* Update ZabbixAlerts on display. */
+        int alerts_to_show = alerts.size();
+        float alert_sqrt = sqrt(alerts_to_show);
+        int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
+        if (row_col_size <= 1) {
+            row_col_size = 2;
+        }
+        int block_size = 31 / row_col_size;
+        /* Offset: when showing 9 alerts we want 1 pixel on all 4 sides,
+         * not 2 left and 2 below. */
+        int block_offset = (31 - (row_col_size * block_size)) / 2 + 1;
+
         /* Lightness depends on wifi/connection state. */
         float saturation = 1.0;
         float lightness = 1.0;
@@ -437,36 +450,17 @@ int main()
             }
         }
 
-        /* Update ZabbixAlerts on display. */
-        int alerts_to_show = alerts.size();
-        /* Calculate scaling row and col size*/
-        float alert_sqrt = sqrt(alerts_to_show);
-        int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
-        /* minimum of 4 blocks*/
-        if (row_col_size == 1) {
-            row_col_size = 2;
-        }
-        int block_size = 32/row_col_size;
-        /* calculate offset
-        example: when showing 9 alerts we want 1 pixel on all 4 sides.
-        not 2 left 2 below*/
-        int empty_pixels = 32 - (row_col_size * block_size);
-
-        /* write pixels*/
-        for (int x = empty_pixels / 2; x < block_size * row_col_size; x += block_size) {
-            for (int y = empty_pixels / 2; y < block_size * row_col_size; y += block_size) {
+        /* For now, write rectangles for all alerts. */
+        lightness = 1.0;
+        graphics.set_pen(graphics.create_pen_hsv(0, saturation, lightness)); // red
+        for (int y = block_offset; y < block_size * row_col_size; y += block_size) {
+            for (int x = block_offset; x < block_size * row_col_size; x += block_size) {
                 if (alerts_to_show) {
                     int w;
                     for (w = x; w < x + block_size - 1; ++w) {
-                        graphics.set_pen(255, 0, 0);
                         for (int h = y; h < y + block_size - 1; ++h) {
                             graphics.pixel(Point(w, h));
                         }
-                        graphics.set_pen(64, 0, 0);
-                        graphics.pixel(Point(w, y + block_size - 1));
-                    }
-                    for (int h = y; h < y + block_size; ++h) {
-                        graphics.pixel(Point(w, h));
                     }
                     alerts_to_show -= 1;
                 }
