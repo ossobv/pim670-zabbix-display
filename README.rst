@@ -19,27 +19,33 @@ point. See `boilerplate docs
 Building/installing
 -------------------
 
-*FIXME: Build instructions go here.*
+Quick build instructions::
 
-- apt install cmake gcc-arm-none-eabi
+    apt install cmake gcc-arm-none-eabi
 
-Jump to a nice library dir and to these:
+Jump to a nice library dir and to these::
 
-- git clone --recursive https://github.com/raspberrypi/pico-sdk.git
-- git clone --recursive https://github.com/pimoroni/pimoroni-pico.git
+    git clone --recursive https://github.com/raspberrypi/pico-sdk.git
+    git clone --recursive https://github.com/pimoroni/pimoroni-pico.git
 
-Jump to the project dir and do this:
+Jump to the project dir and do this::
 
-- git clone https://github.com/ossobv/pim670-zabbix-display.git
-- cd pim670-zabbix-display
-- mkdir -p build && cd build
-- cmake -DPICO_SDK_PATH=${libdir:-../../lib}/pico-sdk -DPIMORONI_PICO_PATH=${libdir:-../../lib}/pimoroni-pico2 ..
-- make
+    git clone https://github.com/ossobv/pim670-zabbix-display.git
+    cd pim670-zabbix-display
+    mkdir -p build && cd build
+    cmake -DPICO_SDK_PATH=${libdir:-../../lib}/pico-sdk \
+      -DPIMORONI_PICO_PATH=${libdir:-../../lib}/pimoroni-pico ..
+    make -j12
 
-*FIXME: Installing instructions go here.*
+This should produce a ``pim670-zabbix-display.uf2`` file.
 
-- restart PIM670 by pressing BOOTSEL and RESET
-- mount + copy pim670-zabbix-display.uf2 file
+To install, you press ``BOOTSEL`` and ``RESET`` on the *Cosmic Unicorn*.
+This puts the device into flash mode and allows you to (auto)mount the
+USB-drive and copy ``pim670-zabbix-display.uf2`` there::
+
+    cp pim670-zabbix-display.uf2 /media/$(whoami)/RPI-RP2/
+
+This restarts the device, and you're good to go.
 
 
 -------
