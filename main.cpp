@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <cmath> // for std::ceil
 
+
 /* SDK header files. */
 
 #include "pico/stdlib.h"
@@ -33,12 +34,6 @@
 
 #include <string>
 
-
-/* Globals. */
-
-using pimoroni::Point;
-using pimoroni::Rect;
-
 typedef enum States {
     ST_DO_REQUEST = 0,
     ST_WAIT_RESPONSE,
@@ -47,48 +42,18 @@ typedef enum States {
     ST_SLEEP
 } State;
 
-pimoroni::PicoGraphics_PenRGB888 graphics(32, 32, nullptr);
-pimoroni::CosmicUnicorn cosmic_unicorn;
-
-float lifetime[32][32];
-float age[32][32];
-
-State app_state;
-int http_state;
-uint32_t wait_until;
-/* We expect updates every 15 s, so after 30 s we turn gray. */
-constexpr int updates_at_least_every = 30000;
-uint32_t last_update = (uint32_t)(-2 * updates_at_least_every); // start gray
-
-int boot_delay;
-int watchdog_timer;
-std::string trigger_url;
-std::string auth_header;
-
-int http_status;
-std::string http_response;
-httpclient_request_t *http_request;
-
-std::vector<std::string> split(const std::string& s) {
-    std::vector<std::string> tokens;
-    size_t spos = 0;
-    size_t epos;
-    std::string token;
-    while ((epos = s.find(";", spos)) != std::string::npos) {
-        tokens.push_back(s.substr(spos, epos - spos));
-        spos = epos + 1;
-    }
-    tokens.push_back(s.substr(spos));
-    return tokens;
-}
+std::vector<std::string> split(const std::string& s);
 
 class ZabbixAlert {
     public:
-        ZabbixAlert(uint32_t clock, uint32_t hostid, uint8_t severity, uint8_t suppressed)
-            : clock(clock), hostid(hostid), severity(severity), suppressed(suppressed) {}
+        ZabbixAlert(
+            uint32_t clock, uint32_t hostid, uint8_t severity,
+            uint8_t suppressed) :
+                clock(clock), hostid(hostid), severity(severity),
+                suppressed(suppressed) {}
 
         static ZabbixAlert from_csv(const std::string& s) {
-            /* example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message> */
+            /* "<time>;<severity>;<suppr>;<hostid>;<hostname>;<message>" */
             std::vector<std::string> result = split(s);
             if (result.size() == 6) {
                 return ZabbixAlert(
@@ -108,7 +73,8 @@ class ZabbixAlert {
         //std::string host;
         //std::string name;
 
-        // Compare function: compares based on clock, hostid, severity, and suppressed
+        // Compare function: compares based on clock, hostid, severity,
+        // and suppressed.
         bool compare(const ZabbixAlert& other) const {
             return clock == other.clock &&
                 hostid == other.hostid &&
@@ -122,10 +88,63 @@ class ZabbixAlert {
         }
 };
 
+
+/* Globals. */
+
+using pimoroni::Point;
+using pimoroni::Rect;
+
+pimoroni::PicoGraphics_PenRGB888 graphics(32, 32, nullptr);
+pimoroni::CosmicUnicorn cosmic_unicorn;
+
+float lifetime[32][32];
+float age[32][32];
+
+State app_state;
+int http_state;
+uint32_t wait_until;
+/* We expect updates every 15 s, so after 30 s we turn gray. */
+constexpr int updates_at_least_every = 30000;
+uint32_t last_update;
+
+int boot_delay;
+int watchdog_timer;
+std::string trigger_url;
+std::string auth_header;
+
+int http_status;
+std::string http_response;
+httpclient_request_t *http_request;
+
 std::vector<ZabbixAlert> alerts;
+
+constexpr float hue(float hue360)
+{
+    return hue360 / 360.0;
+}
+
+constexpr float HUE_RED = hue(0);
+constexpr float HUE_ORANGE = hue(30);
+constexpr float HUE_YELLOW = hue(60);
+constexpr float HUE_GREEN = hue(120);
 
 
 /* Functions. */
+
+std::vector<std::string> split(const std::string& s)
+{
+    std::vector<std::string> tokens;
+    size_t spos = 0;
+    size_t epos;
+    std::string token;
+    while ((epos = s.find(";", spos)) != std::string::npos) {
+        tokens.push_back(s.substr(spos, epos - spos));
+        spos = epos + 1;
+    }
+    tokens.push_back(s.substr(spos));
+    return tokens;
+}
+
 
 uint32_t millis()
 {
@@ -165,10 +184,13 @@ void update_from_config()
         watchdog_disable();
     }
     /* Switch to potentially new WiFi credentials. */
-    httpclient_set_credentials(config_get("WIFI_SSID"), config_get("WIFI_PASSWORD"));
+    httpclient_set_credentials(
+        config_get("WIFI_SSID"), config_get("WIFI_PASSWORD"));
     /* Switch to potentially new ZABBIX API and TOKEN. */
-    trigger_url = std::string(config_get("ZABBIX_API" )) + "?a=v0.1/triggers";
-    auth_header = std::string("Authorization: Bearer ") + config_get("ZABBIX_TOKEN") + "\r\n";
+    trigger_url = std::string(config_get("ZABBIX_API")) + "?a=v0.1/triggers";
+    auth_header = (
+        std::string("Authorization: Bearer ") + config_get("ZABBIX_TOKEN") +
+        "\r\n");
 }
 
 
@@ -180,7 +202,7 @@ int main()
     /* Initialise the WiFi chipset. */
     if (cyw43_arch_init())
     {
-        printf( "Failed to initialise the WiFI chipset (cyw43)\n" );
+        printf("Failed to initialise the WiFI chipset (cyw43)\n");
         return 1;
     }
 
@@ -199,12 +221,12 @@ int main()
          * in CONFIG.TXT after mounting the runtime mount point (usbfs!). */
         {"WIFI_SSID", "my_network"},
         {"WIFI_PASSWORD", "my_password"},
-        /* NOTE: We need a separate api_csv.php, as the api_jsonrpc.php requires
-         * multiple calls.
-         * NOTE: The TLS handler does not support TLS 1.3, so the side needs 1.2
-         * or lower.
-         * NOTE: If the site has PFS the certificate needs to be ECDSA. For RSA
-         * RSA we'd need a cipher without DHE. */
+        /* NOTE: We need a separate api_csv.php, as the api_jsonrpc.php
+         * requires multiple calls.
+         * NOTE: The TLS handler does not support TLS 1.3, so the side
+         * needs 1.2 or lower.
+         * NOTE: If the site has PFS the certificate needs to be ECDSA.
+         * For RSA RSA we'd need a cipher without DHE. */
         {"ZABBIX_API", "http://zabbix.example.com/api_csv.php"},
         /* NOTE: 64 char Zabbix API token. */
         {"ZABBIX_TOKEN", "abc123"},
@@ -244,7 +266,8 @@ int main()
         printf("Rebooted by Watchdog!\n");
         for (int i = 0; i < 5; ++i) {
             for (int lightness = 1; lightness >= 0; --lightness) {
-                graphics.set_pen(graphics.create_pen_hsv(0.083, 1.0, (float)lightness)); // orange
+                graphics.set_pen(graphics.create_pen_hsv(
+                        HUE_ORANGE, 1.0, (float)lightness));
                 graphics.rectangle(Rect(0, 0, 32, 32));
                 cosmic_unicorn.update(&graphics);
                 usbfs_sleep_ms(200);
@@ -253,6 +276,9 @@ int main()
     } else {
         printf("Clean boot\n");
     }
+
+    /* Last update was never. */
+    last_update = millis() - updates_at_least_every;
 
     /* Enter the main program loop now. */
     while (true)
@@ -270,11 +296,13 @@ int main()
                 app_state = ST_WAIT_RESPONSE;
                 if (http_request == NULL)
                 {
-                    http_request = httpclient_open2("GET", trigger_url.c_str(), NULL, 1024, auth_header.c_str(), NULL);
+                    http_request = httpclient_open2(
+                        "GET", trigger_url.c_str(), NULL, 1024,
+                        auth_header.c_str(), NULL);
                 }
                 else
                 {
-                    printf("BUG: ST_DO_REQUEST: why is http_request non-zero?\n");
+                    printf("BUG: ST_DO_REQUEST: http_request non-zero?\n");
                 }
                 break;
 
@@ -282,18 +310,21 @@ int main()
                 /* Check API response. */
                 if (http_request)
                 {
-                    httpclient_status_t new_http_state = httpclient_check(http_request);
+                    httpclient_status_t new_http_state = (
+                        httpclient_check(http_request));
                     switch (new_http_state) {
                         case HTTPCLIENT_NONE:
                         case HTTPCLIENT_WIFI_INIT:
                         case HTTPCLIENT_WIFI:
-                            if (new_http_state != http_state)
-                            {
-                                printf("HTTPCLIENT_* state change %d -> %d (no timeout)\n", http_state, new_http_state);
+                            if (new_http_state != http_state) {
+                                printf(
+                                    "HTTPCLIENT_* state change %d -> %d"
+                                    "(no timeout)\n",
+                                    http_state, new_http_state);
                             }
                             break;
                         case HTTPCLIENT_DNS:
-                        case HTTPCLIENT_CONNECT: /* blame TLS for long waits/stall here! */
+                        case HTTPCLIENT_CONNECT: // <- long TLS waits/stalls
                         case HTTPCLIENT_REQUEST:
                         case HTTPCLIENT_RESPONSE_STATUS:
                         case HTTPCLIENT_HEADERS:
@@ -314,28 +345,37 @@ int main()
                             }
                             if (new_http_state != http_state)
                             {
-                                printf("HTTPCLIENT_* state change %d -> %d\n", http_state, new_http_state);
-                                wait_until = millis() + 15000; /* set max http timeout to 15s */
+                                printf(
+                                    "HTTPCLIENT_* state change %d -> %d\n",
+                                    http_state, new_http_state);
+                                /* Max HTTP state change timeout 15 s. */
+                                wait_until = millis() + 15000;
                             }
                             break;
                         case HTTPCLIENT_COMPLETE:
                         case HTTPCLIENT_TRUNCATED:
                             // FIXME: do something with truncated response?
-                            printf("HTTPCLIENT_COMPLETE? (%d) response code %d\n", new_http_state, http_request->http_status);
+                            printf(
+                                "HTTPCLIENT_COMPLETE? (%d) response code %d\n",
+                                new_http_state, http_request->http_status);
                             http_status = http_request->http_status;
-                            http_response = std::string(httpclient_get_response(http_request), http_request->response_length);
-                            printf("Response: [[[%s]]]\n", http_response.c_str());
+                            http_response = std::string(
+                                httpclient_get_response(http_request),
+                                http_request->response_length);
+                            printf(
+                                "Response: [[[%s]]]\n", http_response.c_str());
                             printf("Mem free: %lu\n", mem_heap_free());
                             httpclient_close(http_request);
                             http_request = NULL;
-                            printf("Mem free: %lu (after closing http)\n", mem_heap_free());
-                            if (new_http_state == HTTPCLIENT_COMPLETE) {
-                                last_update = millis();
-                            }
+                            printf(
+                                "Mem free: %lu (after closing http)\n",
+                                mem_heap_free());
                             app_state = ST_HANDLE_RESPONSE;
                             break;
                         case HTTPCLIENT_FAILED:
-                            printf("HTTPCLIENT_FAILED response code %d\n", http_request->http_status);
+                            printf(
+                                "HTTPCLIENT_FAILED response code %d\n",
+                                http_request->http_status);
                             http_status = 0;
                             httpclient_close(http_request);
                             http_request = NULL;
@@ -352,37 +392,47 @@ int main()
 
             case ST_HANDLE_RESPONSE:
                 /* Handle response. */
-                printf("ST_API_RESPONSE (%d): [[[%s]]]\n", http_status, http_response.c_str());
+                printf(
+                    "ST_API_RESPONSE (%d): [[[%s]]]\n",
+                    http_status, http_response.c_str());
                 if (http_status == 200)
                 {
                     // clock;severity;suppressed;hostid;host;name
-                    // 1733896822;5;0;12847;node1.example.com;CPU 25+% busy with I/O for >1h on node
+                    // 1733896822;5;0;12847;node1.example.com;CPU 25+% busy
                     std::vector<ZabbixAlert> results;
-                    // if there are 225 rows, we have 15*15 pixels, which is the limit
-                    for (std::string::size_type i(0), len(http_response.length()), pos(0), row(0); i <= len && row <= 225; i++) {
+                    // If there are 225 rows, we have 15 * 15 blocks,
+                    // which is the limit that fits on our display.
+                    for (
+                        std::string::size_type i(0),
+                            len(http_response.length()), pos(0), row(0);
+                        i <= len && row <= 225;
+                        ++i
+                    ) {
                         if (http_response[i] == '\n' || i == len) {
                             if (row && (i - pos)) {
-                                results.push_back(ZabbixAlert::from_csv(http_response.substr(pos, i - pos)));
+                                results.push_back(ZabbixAlert::from_csv(
+                                    http_response.substr(pos, i - pos)));
                             }
                             row++;
                             pos = i + 1;
                         }
                     }
                     http_response.clear();
-                    // wiping.. no transitions yet..
-                    if(std::equal(results.begin(), results.end(), alerts.begin())){
+                    if (std::equal(
+                            results.begin(), results.end(), alerts.begin())) {
                         // no change
                         printf("No changes\n");
-                    } else{
+                    } else {
                         printf("Alerts changef\n");
                     }
+                    // Replace old. We have no transitions yet.
                     alerts = results;
-                    //alerts.assign(results.begin(), results.end());
+                    last_update = millis();
                     app_state = ST_TRANSITION;
                 }
                 else
                 {
-                    /* sucks to be you.. */
+                    /* Sucks to be you.. */
                     http_response.clear();
                     app_state = ST_SLEEP;
                     wait_until = millis() + 10000;
@@ -407,14 +457,14 @@ int main()
         if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP)) {
             cosmic_unicorn.adjust_brightness(+0.01);
         }
-        if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN )) {
+        if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN)) {
             cosmic_unicorn.adjust_brightness(-0.01);
         }
 
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
-        /* Update ZabbixAlerts on display. */
+        /* Get info about ZabbixAlerts on display. */
         int alerts_to_show = alerts.size();
         float alert_sqrt = sqrt(alerts_to_show);
         int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
@@ -427,22 +477,22 @@ int main()
         int block_offset = (31 - (row_col_size * block_size)) / 2 + 1;
 
         /* Lightness depends on wifi/connection state. */
-        float saturation = 1.0;
-        float lightness = 1.0;
-        if ((millis() - last_update) >= updates_at_least_every) {
-            saturation = 0.0;
-            lightness = 0.5;
-        }
+        bool has_recent_data = (
+            (millis() - last_update) < updates_at_least_every);
+        float saturation = has_recent_data ? 1.0 : 0.0;
+        float lightness = has_recent_data ? 0.6 : 0.3;
 
         /* Update eighties super computer. */
         for (int y = 0; y < 32; ++y) {
             for (int x = 0; x < 32; ++x) {
                 if (age[x][y] < lifetime[x][y] * 0.3f) {
-                    graphics.set_pen(graphics.create_pen_hsv(0.333, saturation, lightness));
+                    graphics.set_pen(graphics.create_pen_hsv(
+                            HUE_GREEN, saturation, lightness));
                     graphics.pixel(Point(x, y));
                 } else if(age[x][y] < lifetime[x][y] * 0.5f) {
                     float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
-                    graphics.set_pen(graphics.create_pen_hsv(0.333, saturation, lightness * decay));
+                    graphics.set_pen(graphics.create_pen_hsv(
+                        HUE_GREEN, saturation, lightness * decay));
                     graphics.pixel(Point(x, y));
                 }
                 if (age[x][y] >= lifetime[x][y]) {
@@ -453,11 +503,16 @@ int main()
             }
         }
 
-        /* For now, write rectangles for all alerts. */
-        lightness = 1.0;
-        graphics.set_pen(graphics.create_pen_hsv(0, saturation, lightness)); // red
-        for (int y = block_offset; y < block_size * row_col_size; y += block_size) {
-            for (int x = block_offset; x < block_size * row_col_size; x += block_size) {
+        /* Write static rectangles for all alerts. */
+        saturation = has_recent_data ? 1.0 : 0.5;
+        lightness = has_recent_data ? 1.0 : 0.6;
+        graphics.set_pen(graphics.create_pen_hsv(
+            HUE_RED, saturation, lightness));
+
+        for (int y = block_offset; y < block_size * row_col_size;
+                y += block_size) {
+            for (int x = block_offset; x < block_size * row_col_size;
+                    x += block_size) {
                 if (alerts_to_show) {
                     int w;
                     for (w = x; w < x + block_size - 1; ++w) {
