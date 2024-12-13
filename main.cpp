@@ -60,37 +60,37 @@ int http_status;
 std::string http_response;
 httpclient_request_t *http_request;
 
-std::vector<std::string> split(const std::string& s) {                          
-    std::vector<std::string> tokens;                                            
-    size_t spos = 0, epos = 0;                                                  
-    std::string token;                                                          
-    while ((epos = s.find(";", spos)) != std::string::npos) {                   
-        tokens.push_back(s.substr(spos, epos - spos));                          
-		spos = epos + 1;                                                        
-    }                                                                           
-    tokens.push_back(s.substr(spos));                                          
-                                                                                
-    return tokens;                                                              
-}    
+std::vector<std::string> split(const std::string& s) {
+    std::vector<std::string> tokens;
+    size_t spos = 0, epos = 0;
+    std::string token;
+    while ((epos = s.find(";", spos)) != std::string::npos) {
+        tokens.push_back(s.substr(spos, epos - spos));
+        spos = epos + 1;
+    }
+    tokens.push_back(s.substr(spos));
+
+    return tokens;
+}
 
 class ZabbixAlert {
     public:
 
-		ZabbixAlert(uint32_t clock, uint32_t hostid, uint8_t severity, uint8_t suppressed)
-			: clock(clock), hostid(hostid), severity(severity), suppressed(suppressed) {}
+        ZabbixAlert(uint32_t clock, uint32_t hostid, uint8_t severity, uint8_t suppressed)
+            : clock(clock), hostid(hostid), severity(severity), suppressed(suppressed) {}
 
         static ZabbixAlert from_csv(const std::string& s) {
             /* Not important yet. First when we add "change" transitions
              * does this become important.
-			 * example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message>
-			*/
-			std::vector<std::string> result = split(s);
-			// printf("created new zabbixalert with host %s\n", result[4].c_str());
+             * example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message>
+            */
+            std::vector<std::string> result = split(s);
+            // printf("created new zabbixalert with host %s\n", result[4].c_str());
             return ZabbixAlert(
-				static_cast<uint32_t>(std::stoul(result[0])),
-				static_cast<uint32_t>(std::stoul(result[3])),
-				static_cast<uint8_t>(std::stoul(result[1])),
-				static_cast<uint8_t>(std::stoul(result[2])));
+                static_cast<uint32_t>(std::stoul(result[0])),
+                static_cast<uint32_t>(std::stoul(result[3])),
+                static_cast<uint8_t>(std::stoul(result[1])),
+                static_cast<uint8_t>(std::stoul(result[2])));
         }
         uint32_t clock;
         uint32_t hostid;
@@ -99,18 +99,18 @@ class ZabbixAlert {
         //std::string host;
         //std::string name;
 
-		// Compare function: compares based on clock, hostid, severity, and suppressed
-		bool compare(const ZabbixAlert& other) const {
-			return clock == other.clock &&
-				hostid == other.hostid &&
-				severity == other.severity &&
-				suppressed == other.suppressed;
-		}
+        // Compare function: compares based on clock, hostid, severity, and suppressed
+        bool compare(const ZabbixAlert& other) const {
+            return clock == other.clock &&
+                hostid == other.hostid &&
+                severity == other.severity &&
+                suppressed == other.suppressed;
+        }
 
-		// Overload == operator for equality comparison
-		bool operator==(const ZabbixAlert& other) const {
-			return compare(other);
-		}
+        // Overload == operator for equality comparison
+        bool operator==(const ZabbixAlert& other) const {
+            return compare(other);
+        }
 };
 
 std::vector<ZabbixAlert> alerts;
@@ -327,12 +327,12 @@ int main()
                     http_response.clear();
                     // wiping.. no transitions yet..
                     if(std::equal(results.begin(), results.end(), alerts.begin())){
-						// no change
-						printf("No changes\n");
-					} else{
-						printf("Alerts changef\n");
-					}
-					alerts = results;
+                        // no change
+                        printf("No changes\n");
+                    } else{
+                        printf("Alerts changef\n");
+                    }
+                    alerts = results;
                     //alerts.assign(results.begin(), results.end());
                     app_state = ST_TRANSITION;
                 }
