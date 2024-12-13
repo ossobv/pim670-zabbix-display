@@ -56,6 +56,9 @@ float age[32][32];
 State app_state;
 int http_state;
 uint32_t wait_until;
+/* We expect updates every 15 s, so after 30 s we turn gray. */
+constexpr int updates_at_least_every = 30000;
+uint32_t last_update = (uint32_t)(-2 * updates_at_least_every); // start gray
 
 int boot_delay;
 int watchdog_timer;
@@ -156,6 +159,11 @@ void update_from_config()
         }
         watchdog_timer = value;
     }
+    if (watchdog_timer) {
+        watchdog_enable(watchdog_timer, 0);
+    } else {
+        watchdog_disable();
+    }
     /* Switch to potentially new WiFi credentials. */
     httpclient_set_credentials(config_get("WIFI_SSID"), config_get("WIFI_PASSWORD"));
     /* Switch to potentially new ZABBIX API and TOKEN. */
@@ -231,12 +239,12 @@ int main()
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);  /* disable PicoW LED */
     }
 
-    /* Notify why we started */
+    /* Notify why we (re)started. */
     if (watchdog_caused_reboot()) {
         printf("Rebooted by Watchdog!\n");
         for (int i = 0; i < 5; ++i) {
             for (int lightness = 1; lightness >= 0; --lightness) {
-                graphics.set_pen(graphics.create_pen_hsv(0.333, 1.0, (float)lightness)); // green
+                graphics.set_pen(graphics.create_pen_hsv(0.25, 1.0, (float)lightness)); // orange
                 graphics.rectangle(Rect(0, 0, 32, 32));
                 cosmic_unicorn.update(&graphics);
                 usbfs_sleep_ms(200);
@@ -244,11 +252,6 @@ int main()
         }
     } else {
         printf("Clean boot\n");
-    }
-
-    /* Enable watchdog */
-    if (watchdog_timer) {
-        watchdog_enable(watchdog_timer, 0);  // should kick in after 5s
     }
 
     /* Enter the main program loop now. */
@@ -324,6 +327,7 @@ int main()
                             httpclient_close(http_request);
                             http_request = NULL;
                             printf("Mem free: %lu (after closing http)\n", mem_heap_free());
+                            last_update = millis();
                             app_state = ST_HANDLE_RESPONSE;
                             break;
                         case HTTPCLIENT_TRUNCATED:
@@ -411,15 +415,23 @@ int main()
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
+        /* Lightness depends on wifi/connection state. */
+        float saturation = 1.0;
+        float lightness = 1.0;
+        if ((millis() - last_update) >= updates_at_least_every) {
+            saturation = 0.0;
+            lightness = 0.5;
+        }
+
         /* Update eighties super computer. */
         for (int y = 0; y < 32; ++y) {
             for (int x = 0; x < 32; ++x) {
                 if (age[x][y] < lifetime[x][y] * 0.3f) {
-                    graphics.set_pen(230, 150, 0);
+                    graphics.set_pen(graphics.create_pen_hsv(0.333, saturation, lightness));
                     graphics.pixel(Point(x, y));
                 } else if(age[x][y] < lifetime[x][y] * 0.5f) {
                     float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
-                    graphics.set_pen(decay * 230, decay * 150, 0);
+                    graphics.set_pen(graphics.create_pen_hsv(0.333, saturation, lightness * decay));
                     graphics.pixel(Point(x, y));
                 }
                 if (age[x][y] >= lifetime[x][y]) {
