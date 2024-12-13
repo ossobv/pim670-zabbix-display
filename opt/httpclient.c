@@ -508,6 +508,9 @@ httpclient_request_t *httpclient_open2( const char *p_method,
     return NULL;
   }
 
+  /* Wipe mem. So we don't return bogus/old status codes for instance. */
+  memset( l_request, 0, sizeof(*l_request) );
+
   /* Work through the URL, work out what we have - scheme first. */
   if ( strncmp( p_url, "http://", 7 ) == 0 )
   {
