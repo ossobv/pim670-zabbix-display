@@ -126,6 +126,7 @@ constexpr float hue(float hue360)
 constexpr float HUE_RED = hue(0);
 constexpr float HUE_ORANGE = hue(30);
 constexpr float HUE_YELLOW = hue(60);
+constexpr float HUE_LIME = hue(90);
 constexpr float HUE_GREEN = hue(120);
 
 
@@ -487,12 +488,12 @@ int main()
             for (int x = 0; x < 32; ++x) {
                 if (age[x][y] < lifetime[x][y] * 0.3f) {
                     graphics.set_pen(graphics.create_pen_hsv(
-                            HUE_GREEN, saturation, lightness));
+                            HUE_LIME, saturation, lightness));
                     graphics.pixel(Point(x, y));
                 } else if(age[x][y] < lifetime[x][y] * 0.5f) {
                     float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
                     graphics.set_pen(graphics.create_pen_hsv(
-                        HUE_GREEN, saturation, lightness * decay));
+                        HUE_LIME, saturation, lightness * decay));
                     graphics.pixel(Point(x, y));
                 }
                 if (age[x][y] >= lifetime[x][y]) {
