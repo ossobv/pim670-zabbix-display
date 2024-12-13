@@ -71,30 +71,25 @@ httpclient_request_t *http_request;
 
 std::vector<std::string> split(const std::string& s) {
     std::vector<std::string> tokens;
-    size_t spos = 0, epos = 0;
+    size_t spos = 0;
+    size_t epos;
     std::string token;
     while ((epos = s.find(";", spos)) != std::string::npos) {
         tokens.push_back(s.substr(spos, epos - spos));
         spos = epos + 1;
     }
     tokens.push_back(s.substr(spos));
-
     return tokens;
 }
 
 class ZabbixAlert {
     public:
-
         ZabbixAlert(uint32_t clock, uint32_t hostid, uint8_t severity, uint8_t suppressed)
             : clock(clock), hostid(hostid), severity(severity), suppressed(suppressed) {}
 
         static ZabbixAlert from_csv(const std::string& s) {
-            /* Not important yet. First when we add "change" transitions
-             * does this become important.
-             * example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message>
-            */
+            /* example string: 1734014622;<severity>;0;<host_id>>;<hostname>;<message> */
             std::vector<std::string> result = split(s);
-            // printf("created new zabbixalert with host %s\n", result[4].c_str());
             return ZabbixAlert(
                 static_cast<uint32_t>(std::stoul(result[0])),
                 static_cast<uint32_t>(std::stoul(result[3])),
@@ -103,7 +98,7 @@ class ZabbixAlert {
         }
         uint32_t clock;
         uint32_t hostid;
-        uint8_t severity:1;
+        uint8_t severity:7;
         uint8_t suppressed:1;
         //std::string host;
         //std::string name;
