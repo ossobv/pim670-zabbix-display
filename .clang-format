@@ -1,0 +1,95 @@
+# PEP8: Indentation is 4 spaces
+# https://peps.python.org/pep-0008/#tabs-or-spaces
+UseTab: Never
+TabWidth: 4
+IndentWidth: 4
+#LineEnding: LF
+#InsertNewlineAtEOF: true
+
+# Indentation for preprocessor is 1, after the hash.
+PPIndentWidth: 1
+IndentPPDirectives: AfterHash
+
+# PEP8: Line length is 79 characters
+# https://peps.python.org/pep-0008/#maximum-line-length
+ColumnLimit: 79
+BreakStringLiterals: true
+AlwaysBreakBeforeMultilineStrings: true
+
+# PEP8: Hanging indentation
+# https://peps.python.org/pep-0008/#indentation
+AlignAfterOpenBracket: AlwaysBreak
+
+# PEP8: Break before operators
+# https://peps.python.org/pep-0008/#should-a-line-break-before-or-after-a-binary-operator
+BreakBeforeBinaryOperators: NonAssignment
+# Force function declaration on individual lines, but not function calls.
+BinPackArguments: true
+BinPackParameters: false
+
+# No space after cast "(float)4 / 2.0" to signify precedence.
+SpaceAfterCStyleCast: false
+
+# Never any if/for/while body on the same line.
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Braces only on a line of their own for functions.
+# (Mostly always here. Helps with hanging indent.)
+# (The 'extern "C" {' gets to be unindented.)
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterClass: true
+    AfterFunction: true
+    AfterCaseLabel: true
+    AfterControlStatement: true
+    AfterEnum: true
+    AfterExternBlock: false
+    AfterStruct: true
+    BeforeElse: true
+    BeforeWhile: true
+IndentExternBlock: NoIndent
+IndentCaseLabels: false
+IndentGotoLabels: false
+# public:/private:/protected: start on the left.
+AccessModifierOffset: -4
+IndentAccessModifiers: false
+
+# Function definition/declarations.
+AlwaysBreakAfterReturnType: None
+
+# Alignment of define-values and declarations.
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
+AlignConsecutiveDeclarations: 'None'	# or AcrossEmptyLines
+#    AcrossEmptyLines: true
+#    AcrossComments: false
+#    AlignCompound: false
+#    AlignFunctionDeclarations: false
+#    AlignFunctionPointers: true
+#    PadOperators: false
+
+# Alignment of array of struct (initializations).
+# Either "Left" or "None". Left is nice for big structs.
+AlignArrayOfStructures: None
+
+# Pointers as int* a or int *b.
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Fixes:
+# -static char*
+# -base64_decode_string(const char* buf, unsigned int len, int* newlen)
+# +static char* base64_decode_string(
+# +    const char* buf, unsigned int len, int* newlen)
+PenaltyReturnTypeOnItsOwnLine: 150
+
+# Unsure..
+# -        bool has_recent_data = (
+# -            (millis() - last_update) < updates_at_least_every);
+# +        bool has_recent_data =
+# +            ((millis() - last_update) < updates_at_least_every);
+# ^- this still needs fixing
+#PenaltyBreakOpenParenthesis: 0
+#PenaltyBreakAssignment: 1000

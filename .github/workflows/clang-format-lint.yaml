@@ -1,0 +1,25 @@
+name: clang-format-lint
+on: [push, pull_request]
+
+jobs:
+  clang-format-lint-job:
+    name: clang-format lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # You may pin to the exact commit or the version.
+      # uses: DoozyX/clang-format-lint-action@c71d0bf4e21876ebec3e5647491186f8797fde31
+      - uses: DoozyX/clang-format-lint-action@v0.18.2
+        with:
+          # Source folder to check formatting
+          source: .
+          # Folder to exclude from formatting check
+          exclude: ./opt ./usbfs ./zabbix
+          # List of extensions to check
+          #extensions: # optional, default is c,h,C,H,cpp,hpp,cc,hh,c++,h++,cxx,hxx
+          # Version of clang-format
+          #clangFormatVersion: # optional, default is 18
+          # Formatting style to use
+          style: file
+          # Just fix files (`clang-format -i`) instead of returning a diff
+          inplace: false
