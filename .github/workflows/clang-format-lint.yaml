@@ -6,7 +6,7 @@ jobs:
     name: clang-format lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       # You may pin to the exact commit or the version.
       # uses: DoozyX/clang-format-lint-action@c71d0bf4e21876ebec3e5647491186f8797fde31
       - uses: DoozyX/clang-format-lint-action@v0.18.2
