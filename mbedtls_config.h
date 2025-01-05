@@ -1,10 +1,11 @@
-/* Workaround for some mbedtls source files using INT_MAX without including limits.h */
+/* Workaround for some mbedtls source files using INT_MAX without including
+ * limits.h */
 #include <limits.h>
 
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 #define MBEDTLS_ENTROPY_HARDWARE_ALT
 
-#define MBEDTLS_SSL_OUT_CONTENT_LEN    2048
+#define MBEDTLS_SSL_OUT_CONTENT_LEN 2048
 
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 #define MBEDTLS_HAVE_TIME
@@ -60,4 +61,3 @@
 #define MBEDTLS_ECP_C
 #define MBEDTLS_ECDSA_C
 #define MBEDTLS_ASN1_WRITE_C
-
