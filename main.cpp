@@ -527,19 +527,25 @@ int main()
         }
 
         /* Write static rectangles for all alerts. */
-        saturation = has_recent_data ? 1.0 : 0.5;
-        lightness = has_recent_data ? 1.0 : 0.6;
-        graphics.set_pen(
-            graphics.create_pen_hsv(HUE_RED, saturation, lightness));
-
+        size_t alert_idx = 0;
         for (int y = block_offset; y < block_size * row_col_size;
              y += block_size)
         {
             for (int x = block_offset; x < block_size * row_col_size;
                  x += block_size)
             {
-                if (alerts_to_show)
+                if (alert_idx < alerts.size())
                 {
+                    saturation = has_recent_data ? 1.0 : 0.5;
+                    lightness = has_recent_data ? 1.0 : 0.6;
+                    if (alerts[alert_idx].suppressed)
+                    {
+                        saturation = 0;
+                        lightness = 0.6;
+                    }
+                    graphics.set_pen(graphics.create_pen_hsv(
+                        HUE_RED, saturation, lightness));
+
                     int w;
                     for (w = x; w < x + block_size - 1; ++w)
                     {
@@ -548,7 +554,8 @@ int main()
                             graphics.pixel(Point(w, h));
                         }
                     }
-                    alerts_to_show -= 1;
+
+                    alert_idx += 1;
                 }
             }
         }
