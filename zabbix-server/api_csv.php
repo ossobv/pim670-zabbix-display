@@ -233,6 +233,11 @@ echo $csv_output;
 // NOTE: We use ob_start/ob_get_clean to make sure we capture EVERYTHING. If
 // there are stray errors or prints, we need them too.
 $real_output = ob_get_clean();
+// Right now, our PIM670 firmware has issues after 1024 bytes. Trim it to 1023+NUL.
+if (strlen($real_output) > 1023) {
+    $last_lf = strrpos($real_output, "\n", -(strlen($real_output) - 1023));
+    $real_output = ($last_lf !== false) ? substr($real_output, 0, $last_lf + 1) : "";
+}
 // We need to set this because the HTTP client in the PIM670 device is
 // rather dumb.
 header('Content-Length: ' . strlen($real_output));
