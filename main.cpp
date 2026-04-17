@@ -127,6 +127,8 @@ int sound_repeats_remaining;
 uint32_t next_beep_at;
 bool whoop_active = false;
 uint32_t whoop_start_ms = 0;
+bool coin_active = false;
+uint32_t coin_start_ms = 0;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -258,7 +260,20 @@ void play_alert_sound()
 void play_clear_sound()
 {
     whoop_active = false;
-    start_beep(1320, pimoroni::Waveform::TRIANGLE, 1);
+    coin_active = true;
+    coin_start_ms = millis();
+    auto& ch = cosmic_unicorn.synth_channel(0);
+    ch.waveforms  = pimoroni::Waveform::SQUARE;
+    ch.frequency  = 988;
+    ch.volume     = 0xffff;
+    ch.attack_ms  = 5;
+    ch.decay_ms   = 10;
+    ch.sustain    = 0xffff;
+    ch.release_ms = 60;
+    ch.trigger_attack();
+    cosmic_unicorn.play_synth();
+    sound_repeats_remaining = 0;
+    sound_until = millis() + 350;
 }
 
 void update_from_config()
@@ -622,6 +637,16 @@ int main()
             }
         }
 
+        /* Switch to second note of coin sound after 80ms. */
+        if (coin_active)
+        {
+            uint32_t elapsed = millis() - coin_start_ms;
+            if (elapsed >= 80 && cosmic_unicorn.synth_channel(0).frequency == 988)
+                cosmic_unicorn.synth_channel(0).frequency = 1319;
+            if (elapsed >= 300)
+                coin_active = false;
+        }
+
         /* Handle beep repeats and stop synth when done. */
         if (sound_repeats_remaining > 0 && is_after(next_beep_at))
         {
@@ -634,6 +659,7 @@ int main()
             cosmic_unicorn.stop_playing();
             sound_until = 0;
             whoop_active = false;
+            coin_active = false;
         }
 
         /* Volume buttons toggle doom face. */
