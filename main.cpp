@@ -125,6 +125,8 @@ bool vol_down_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
+bool siren_mode = false;
+uint16_t siren_freqs[2] = {880, 500};
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -237,11 +239,13 @@ void draw_xpm_image(const uint8_t* img)
 
 void play_alert_sound()
 {
-    start_beep(880, pimoroni::Waveform::SQUARE, 4);
+    siren_mode = true;
+    start_beep(siren_freqs[0], pimoroni::Waveform::SQUARE, 4);
 }
 
 void play_clear_sound()
 {
+    siren_mode = false;
     start_beep(1320, pimoroni::Waveform::TRIANGLE, 1);
 }
 
@@ -593,6 +597,11 @@ int main()
         /* Handle beep repeats and stop synth when done. */
         if (sound_repeats_remaining > 0 && is_after(next_beep_at))
         {
+            if (siren_mode)
+            {
+                int step = 4 - sound_repeats_remaining; /* 0-based index */
+                cosmic_unicorn.synth_channel(0).frequency = siren_freqs[step % 2];
+            }
             cosmic_unicorn.synth_channel(0).trigger_attack();
             sound_repeats_remaining--;
             next_beep_at = millis() + 250;
@@ -601,6 +610,7 @@ int main()
         {
             cosmic_unicorn.stop_playing();
             sound_until = 0;
+            siren_mode = false;
         }
 
         /* Volume buttons toggle doom face. */
