@@ -113,6 +113,8 @@ bool a_button_prev = false;
 bool game_of_life = false;
 bool b_button_prev = false;
 bool show_suppressed_count = false;
+int bg_mode = 0;
+bool d_button_prev = false;
 bool c_button_prev = false;
 bool gol_grid[32][32];
 uint32_t gol_next_update;
@@ -635,6 +637,12 @@ int main()
         }
         c_button_prev = c_button;
 
+        /* D button: cycle background animation mode. */
+        bool d_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_D);
+        if (d_button && !d_button_prev)
+            bg_mode = (bg_mode + 1) % 4;
+        d_button_prev = d_button;
+
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
@@ -701,30 +709,71 @@ int main()
         else
         {
 
-        /* Update eighties super computer. */
+        /* Background animation (bg_mode 0-3). */
         for (int y = 0; y < 32; ++y)
         {
             for (int x = 0; x < 32; ++x)
             {
-                if (age[x][y] < lifetime[x][y] * 0.3f)
+                float a = age[x][y], l = lifetime[x][y];
+                float step = 0.01f;
+
+                switch (bg_mode)
                 {
-                    graphics.set_pen(graphics.create_pen_hsv(
-                        bg_hue, saturation, lightness));
-                    graphics.pixel(Point(x, y));
+                case 0: /* Rain: sparse decaying flashes. */
+                    if (a < l * 0.3f)
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, saturation, lightness));
+                    else if (a < l * 0.5f)
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, saturation,
+                            lightness * (l * 0.5f - a) * 5.0f));
+                    else
+                        goto next_pixel;
+                    break;
+
+                case 1: /* Twinkle: brief bright sparks, no fade. */
+                    step = 0.025f;
+                    if (a < l * 0.12f)
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, saturation, lightness));
+                    else
+                        goto next_pixel;
+                    break;
+
+                case 2: /* Pulse: smooth sine breathing. */
+                    step = 0.006f;
+                    {
+                        float v = sinf(a / l * 3.14159f);
+                        if (v > 0.0f)
+                            graphics.set_pen(graphics.create_pen_hsv(
+                                bg_hue, saturation, lightness * v));
+                        else
+                            goto next_pixel;
+                    }
+                    break;
+
+                case 3: /* Plasma: all pixels on, flowing density. */
+                    step = 0.008f;
+                    {
+                        float v = 0.3f + 0.4f * (0.5f + 0.5f *
+                                  sinf(a / l * 6.28318f));
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, saturation, lightness * v));
+                    }
+                    break;
                 }
-                else if (age[x][y] < lifetime[x][y] * 0.5f)
+                graphics.pixel(Point(x, y));
+
+                next_pixel:
+                if (a + step >= l)
                 {
-                    float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
-                    graphics.set_pen(graphics.create_pen_hsv(
-                        bg_hue, saturation, lightness * decay));
-                    graphics.pixel(Point(x, y));
-                }
-                if (age[x][y] >= lifetime[x][y])
-                {
-                    age[x][y] = 0.0f;
+                    age[x][y]     = 0.0f;
                     lifetime[x][y] = 1.0f + ((rand() % 10) / 100.0f);
                 }
-                age[x][y] += 0.01f;
+                else
+                {
+                    age[x][y] += step;
+                }
             }
         }
 
