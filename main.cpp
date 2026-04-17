@@ -622,17 +622,27 @@ int main()
         graphics.clear();
 
         /* Get info about ZabbixAlerts on display. */
-        int alerts_to_show = alerts.size();
+        int suppressed_count = 0;
+        for (const auto& a : alerts)
+            if (a.suppressed) suppressed_count++;
+        int active_count = (int)alerts.size() - suppressed_count;
+
+        /* In count mode, size grid by active alerts only and leave 6 px at
+         * the bottom for the number. */
+        bool count_mode = show_suppressed_count && suppressed_count > 0;
+        int alerts_to_show = count_mode ? active_count : (int)alerts.size();
+        int available = count_mode ? 25 : 31;
+
         float alert_sqrt = sqrt(alerts_to_show);
         int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
         if (row_col_size <= 1)
         {
             row_col_size = 2;
         }
-        int block_size = 31 / row_col_size;
+        int block_size = available / row_col_size;
         /* Offset: when showing 9 alerts we want 1 pixel on all 4 sides,
          * not 2 left and 2 below. */
-        int block_offset = (31 - (row_col_size * block_size)) / 2 + 1;
+        int block_offset = (available - (row_col_size * block_size)) / 2 + 1;
 
         /* Lightness depends on wifi/connection state. */
         bool has_recent_data =
@@ -764,14 +774,8 @@ int main()
             }
         }
         /* Display suppressed alert count in bottom-right corner. */
-        if (show_suppressed_count && !game_of_life)
+        if (count_mode && !game_of_life)
         {
-            int suppressed_count = 0;
-            for (const auto& a : alerts)
-                if (a.suppressed)
-                    suppressed_count++;
-
-            if (suppressed_count > 0)
             {
                 std::string count_str = std::to_string(suppressed_count);
                 graphics.set_font(&font6);
