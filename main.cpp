@@ -640,7 +640,7 @@ int main()
         /* D button: cycle background animation mode. */
         bool d_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_D);
         if (d_button && !d_button_prev)
-            bg_mode = (bg_mode + 1) % 4;
+            bg_mode = (bg_mode + 1) % 5;
         d_button_prev = d_button;
 
         graphics.set_pen(0, 0, 0);
@@ -759,6 +759,20 @@ int main()
                                   sinf(a / l * 6.28318f));
                         graphics.set_pen(graphics.create_pen_hsv(
                             bg_hue, saturation, lightness * v));
+                    }
+                    break;
+
+                case 4: /* Wave: horizontal sine band sweeping down. */
+                    step = 0.007f;
+                    {
+                        float phase = a / l * 6.28318f;
+                        float wave  = 0.5f + 0.5f * sinf(phase + x * 0.4f);
+                        float v = lightness * wave;
+                        if (v > 0.05f)
+                            graphics.set_pen(graphics.create_pen_hsv(
+                                bg_hue, saturation, v));
+                        else
+                            goto next_pixel;
                     }
                     break;
                 }
