@@ -125,8 +125,8 @@ bool vol_down_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
-bool siren_mode = false;
-uint16_t siren_freqs[2] = {880, 500};
+bool whoop_active = false;
+uint32_t whoop_start_ms = 0;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -239,13 +239,25 @@ void draw_xpm_image(const uint8_t* img)
 
 void play_alert_sound()
 {
-    siren_mode = true;
-    start_beep(siren_freqs[0], pimoroni::Waveform::SQUARE, 4);
+    whoop_active = true;
+    whoop_start_ms = millis();
+    auto& ch = cosmic_unicorn.synth_channel(0);
+    ch.waveforms  = pimoroni::Waveform::SINE;
+    ch.frequency  = 300;
+    ch.volume     = 0xffff;
+    ch.attack_ms  = 10;
+    ch.decay_ms   = 10;
+    ch.sustain    = 0xffff;
+    ch.release_ms = 80;
+    ch.trigger_attack();
+    cosmic_unicorn.play_synth();
+    sound_repeats_remaining = 0;
+    sound_until = millis() + 1100;
 }
 
 void play_clear_sound()
 {
-    siren_mode = false;
+    whoop_active = false;
     start_beep(1320, pimoroni::Waveform::TRIANGLE, 1);
 }
 
@@ -594,14 +606,25 @@ int main()
             break;
         }
 
+        /* Sweep frequency for whoop sound. */
+        if (whoop_active)
+        {
+            uint32_t elapsed = millis() - whoop_start_ms;
+            if (elapsed < 1000)
+            {
+                float t = (elapsed % 500) / 500.0f;
+                float v = (t < 0.5f) ? (t * 2.0f) : ((1.0f - t) * 2.0f);
+                cosmic_unicorn.synth_channel(0).frequency = (uint16_t)(300 + 600 * v);
+            }
+            else
+            {
+                whoop_active = false;
+            }
+        }
+
         /* Handle beep repeats and stop synth when done. */
         if (sound_repeats_remaining > 0 && is_after(next_beep_at))
         {
-            if (siren_mode)
-            {
-                int step = 4 - sound_repeats_remaining; /* 0-based index */
-                cosmic_unicorn.synth_channel(0).frequency = siren_freqs[step % 2];
-            }
             cosmic_unicorn.synth_channel(0).trigger_attack();
             sound_repeats_remaining--;
             next_beep_at = millis() + 250;
@@ -610,7 +633,7 @@ int main()
         {
             cosmic_unicorn.stop_playing();
             sound_until = 0;
-            siren_mode = false;
+            whoop_active = false;
         }
 
         /* Volume buttons toggle doom face. */
