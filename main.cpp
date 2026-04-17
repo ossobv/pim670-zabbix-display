@@ -656,7 +656,7 @@ int main()
          * the bottom for the number. */
         bool count_mode = show_suppressed_count && suppressed_count > 0;
         int alerts_to_show = count_mode ? active_count : (int)alerts.size();
-        int available = count_mode ? 25 : 31;
+        int available = 31;
 
         float alert_sqrt = sqrt(alerts_to_show);
         int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
@@ -752,13 +752,16 @@ int main()
                     }
                     break;
 
-                case 3: /* Plasma: all pixels on, flowing density. */
-                    step = 0.008f;
+                case 3: /* Sweep: glowing diagonal front, top-left to bottom-right. */
                     {
-                        float v = 0.3f + 0.4f * (0.5f + 0.5f *
-                                  sinf(a / l * 6.28318f));
-                        graphics.set_pen(graphics.create_pen_hsv(
-                            bg_hue, saturation, lightness * v));
+                        float sweep = fmodf(millis() * 0.04f, 80.0f) - 8.0f;
+                        float dist  = sweep - (x + y);
+                        if (dist >= 0.0f && dist < 6.0f)
+                            graphics.set_pen(graphics.create_pen_hsv(
+                                bg_hue, saturation,
+                                lightness * (1.0f - dist / 6.0f)));
+                        else
+                            goto next_pixel;
                     }
                     break;
 
@@ -866,10 +869,10 @@ int main()
         {
             {
                 std::string count_str = std::to_string(suppressed_count);
-                graphics.set_font(&font6);
+                graphics.set_font(&font8);
                 int32_t text_w = graphics.measure_text(count_str, 1.0f, 1);
-                int tx = 32 - text_w;
-                int ty = 26;
+                int tx = (32 - text_w) / 2;
+                int ty = 12;
                 if (alt_colors)
                     graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.8f));
                 else
