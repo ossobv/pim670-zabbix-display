@@ -599,6 +599,10 @@ int main()
                 initial_load = false;
                 // Replace old. We have no transitions yet.
                 alerts = results;
+                std::stable_sort(alerts.begin(), alerts.end(),
+                    [](const ZabbixAlert& a, const ZabbixAlert& b) {
+                        return !a.suppressed && b.suppressed;
+                    });
                 last_update = millis();
                 app_state = ST_TRANSITION;
             }
