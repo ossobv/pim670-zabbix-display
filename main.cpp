@@ -1043,6 +1043,13 @@ int main()
             graphics.pixel(Point(0, 0));
         }
 
+        /* Mute indicator at (1,0): blue when sound/face suppressed, else background. */
+        if (!doom_face_enabled)
+        {
+            graphics.set_pen(graphics.create_pen_hsv(HUE_BLUE, 1.0f, 0.8f));
+            graphics.pixel(Point(1, 0));
+        }
+
         /* Update display and sleep a bit. */
         cosmic_unicorn.update(&graphics);
         usbfs_sleep_ms(10); /* instead of sleep_ms(10); */
