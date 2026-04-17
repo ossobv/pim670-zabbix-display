@@ -555,10 +555,12 @@ int main()
                 }
                 if (has_new_red)
                 {
-                    play_alert_sound();
-                    if (doom_face_enabled) doom_face_until = millis() + 2000;
+                    if (doom_face_enabled) {
+                        play_alert_sound();
+                        doom_face_until = millis() + 2000;
+                    }
                 }
-                else if (has_cleared_red)
+                else if (has_cleared_red && doom_face_enabled)
                     play_clear_sound();
                 // Replace old. We have no transitions yet.
                 alerts = results;
