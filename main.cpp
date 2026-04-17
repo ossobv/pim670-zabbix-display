@@ -622,10 +622,7 @@ int main()
                     }
                     else if (has_cleared_red && doom_face_enabled)
                     {
-                        int new_active = 0;
-                        for (const auto& r : results)
-                            if (!r.suppressed) new_active++;
-                        if (new_active == 0)
+                        if (results.empty())
                             play_flagpole_sound();
                         else
                             play_clear_sound();
