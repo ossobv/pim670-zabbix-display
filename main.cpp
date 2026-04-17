@@ -787,7 +787,10 @@ int main()
         /* In count mode, size grid by active alerts only and leave 6 px at
          * the bottom for the number. */
         bool count_mode = show_suppressed_count && suppressed_count > 0;
-        int alerts_to_show = count_mode ? active_count : (int)alerts.size();
+        bool suppressed_as_cubes = count_mode && active_count == 0;
+        int alerts_to_show = count_mode
+            ? (suppressed_as_cubes ? suppressed_count : active_count)
+            : (int)alerts.size();
         int available = count_mode ? 25 : 31;
 
         float alert_sqrt = sqrt(alerts_to_show);
@@ -951,7 +954,7 @@ int main()
                 {
                     bool is_suppressed = alerts[alert_idx].suppressed;
 
-                    if (show_suppressed_count && is_suppressed)
+                    if (show_suppressed_count && is_suppressed && !suppressed_as_cubes)
                     {
                         alert_idx += 1;
                         continue;
