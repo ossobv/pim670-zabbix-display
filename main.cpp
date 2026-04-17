@@ -216,6 +216,37 @@ void gol_step()
             gol_grid[x][y] = next[x][y];
 }
 
+void draw_all_clear()
+{
+    /* Yellow-green face oval. */
+    graphics.set_pen(graphics.create_pen_hsv(0.22f, 0.75f, 0.95f));
+    for (int y = 3; y < 29; ++y)
+    {
+        float dy = (y - 15.0f) / 12.0f;
+        if (dy * dy >= 1.0f) continue;
+        float dx = sqrtf(1.0f - dy * dy) * 12.0f;
+        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
+            graphics.pixel(Point(x, y));
+    }
+    /* Eyes. */
+    graphics.set_pen(graphics.create_pen(20, 15, 5));
+    graphics.rectangle(Rect(10, 10, 3, 3));
+    graphics.rectangle(Rect(19, 10, 3, 3));
+    /* Smile arc (bottom of circle, center (16,14) radius 7). */
+    graphics.set_pen(graphics.create_pen(20, 15, 5));
+    for (int x = 10; x <= 22; ++x)
+    {
+        float dx = x - 16.0f;
+        int sy = (int)(14.0f + sqrtf(49.0f - dx * dx));
+        graphics.pixel(Point(x, sy));
+        graphics.pixel(Point(x, sy - 1));
+    }
+    /* Rosy cheeks. */
+    graphics.set_pen(graphics.create_pen_hsv(0.0f, 0.55f, 0.85f));
+    graphics.rectangle(Rect(7, 16, 3, 2));
+    graphics.rectangle(Rect(22, 16, 3, 2));
+}
+
 void play_alert_sound()
 {
     start_beep(880, pimoroni::Waveform::SQUARE, 4);
@@ -652,7 +683,11 @@ int main()
 
         float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
 
-        if (game_of_life)
+        if (active_count == 0 && !game_of_life)
+        {
+            draw_all_clear();
+        }
+        else if (game_of_life)
         {
             /* Step the Game of Life at ~150 ms per generation. */
             if (is_after(gol_next_update))
@@ -790,6 +825,18 @@ int main()
             }
         }
         } /* end else (normal display) */
+
+        /* Connection health pixel at (0,0). */
+        {
+            uint32_t age_ms = millis() - last_update;
+            if (age_ms < (uint32_t)updates_at_least_every)
+                graphics.set_pen(graphics.create_pen_hsv(HUE_GREEN, 1.0f, 0.8f));
+            else if (age_ms < 120000)
+                graphics.set_pen(graphics.create_pen_hsv(HUE_ORANGE, 1.0f, 0.8f));
+            else
+                graphics.set_pen(graphics.create_pen_hsv(HUE_RED, 1.0f, 0.8f));
+            graphics.pixel(Point(0, 0));
+        }
 
         /* Update display and sleep a bit. */
         cosmic_unicorn.update(&graphics);
