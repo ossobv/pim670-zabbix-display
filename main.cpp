@@ -119,6 +119,9 @@ bool c_button_prev = false;
 bool gol_grid[32][32];
 uint32_t gol_next_update;
 uint32_t doom_face_until;
+bool doom_face_enabled = true;
+bool vol_up_prev = false;
+bool vol_down_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
@@ -553,7 +556,7 @@ int main()
                 if (has_new_red)
                 {
                     play_alert_sound();
-                    doom_face_until = millis() + 2000;
+                    if (doom_face_enabled) doom_face_until = millis() + 2000;
                 }
                 else if (has_cleared_red)
                     play_clear_sound();
@@ -597,6 +600,16 @@ int main()
             cosmic_unicorn.stop_playing();
             sound_until = 0;
         }
+
+        /* Volume buttons toggle doom face. */
+        bool vol_up   = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_VOLUME_UP);
+        bool vol_down = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_VOLUME_DOWN);
+        if (vol_up && !vol_up_prev)
+            doom_face_enabled = true;
+        if (vol_down && !vol_down_prev)
+            doom_face_enabled = false;
+        vol_up_prev   = vol_up;
+        vol_down_prev = vol_down;
 
         /* Monitor +/- buttons. */
         if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP))
@@ -677,7 +690,7 @@ int main()
 
         float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
 
-        if (doom_face_until && !is_after(doom_face_until))
+        if (doom_face_enabled && doom_face_until && !is_after(doom_face_until))
         {
             draw_xpm_image(DOOM_ALERT);
         }
