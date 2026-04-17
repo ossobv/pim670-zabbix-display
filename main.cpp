@@ -110,6 +110,8 @@ bool alt_colors = false;
 bool a_button_prev = false;
 bool game_of_life = false;
 bool b_button_prev = false;
+bool show_suppressed_count = false;
+bool c_button_prev = false;
 bool gol_grid[32][32];
 uint32_t gol_next_update;
 uint32_t sound_until;
@@ -608,6 +610,14 @@ int main()
         }
         b_button_prev = b_button;
 
+        /* Toggle suppressed count display on C button (rising edge). */
+        bool c_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_C);
+        if (c_button && !c_button_prev)
+        {
+            show_suppressed_count = !show_suppressed_count;
+        }
+        c_button_prev = c_button;
+
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
@@ -693,10 +703,18 @@ int main()
             {
                 if (alert_idx < alerts.size())
                 {
+                    bool is_suppressed = alerts[alert_idx].suppressed;
+
+                    if (show_suppressed_count && is_suppressed)
+                    {
+                        alert_idx += 1;
+                        continue;
+                    }
+
                     float base_saturation = has_recent_data ? 1.0f : 0.5f;
                     float base_lightness = has_recent_data ? 1.0f : 0.6f;
                     float alert_hue = HUE_RED;
-                    if (alerts[alert_idx].suppressed)
+                    if (is_suppressed)
                     {
                         if (alt_colors)
                         {
@@ -743,6 +761,28 @@ int main()
 
                     alert_idx += 1;
                 }
+            }
+        }
+        /* Display suppressed alert count in bottom-right corner. */
+        if (show_suppressed_count && !game_of_life)
+        {
+            int suppressed_count = 0;
+            for (const auto& a : alerts)
+                if (a.suppressed)
+                    suppressed_count++;
+
+            if (suppressed_count > 0)
+            {
+                std::string count_str = std::to_string(suppressed_count);
+                graphics.set_font(&font6);
+                int32_t text_w = graphics.measure_text(count_str, 1.0f, 1);
+                int tx = 32 - text_w;
+                int ty = 26;
+                if (alt_colors)
+                    graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.8f));
+                else
+                    graphics.set_pen(255, 255, 255);
+                graphics.text(count_str, Point(tx, ty), 32, 1.0f, 0.0f, 1);
             }
         }
         } /* end else (normal display) */
