@@ -106,6 +106,8 @@ float age[32][32];
 State app_state;
 int http_state;
 uint32_t wait_until;
+bool alt_colors = false;
+bool a_button_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
@@ -134,6 +136,8 @@ constexpr float HUE_ORANGE = hue(30);
 constexpr float HUE_YELLOW = hue(60);
 constexpr float HUE_LIME = hue(90);
 constexpr float HUE_GREEN = hue(120);
+constexpr float HUE_BLUE = hue(220);
+constexpr float HUE_PINK = hue(320);
 
 /* Functions. */
 
@@ -552,6 +556,14 @@ int main()
             cosmic_unicorn.adjust_brightness(-0.01);
         }
 
+        /* Toggle alt color scheme on A button (rising edge). */
+        bool a_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_A);
+        if (a_button && !a_button_prev)
+        {
+            alt_colors = !alt_colors;
+        }
+        a_button_prev = a_button;
+
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
@@ -574,6 +586,8 @@ int main()
         float saturation = has_recent_data ? 1.0 : 0.0;
         float lightness = has_recent_data ? 0.6 : 0.3;
 
+        float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
+
         /* Update eighties super computer. */
         for (int y = 0; y < 32; ++y)
         {
@@ -582,14 +596,14 @@ int main()
                 if (age[x][y] < lifetime[x][y] * 0.3f)
                 {
                     graphics.set_pen(graphics.create_pen_hsv(
-                        HUE_LIME, saturation, lightness));
+                        bg_hue, saturation, lightness));
                     graphics.pixel(Point(x, y));
                 }
                 else if (age[x][y] < lifetime[x][y] * 0.5f)
                 {
                     float decay = (lifetime[x][y] * 0.5f - age[x][y]) * 5.0f;
                     graphics.set_pen(graphics.create_pen_hsv(
-                        HUE_LIME, saturation, lightness * decay));
+                        bg_hue, saturation, lightness * decay));
                     graphics.pixel(Point(x, y));
                 }
                 if (age[x][y] >= lifetime[x][y])
@@ -613,10 +627,24 @@ int main()
                 {
                     float base_saturation = has_recent_data ? 1.0f : 0.5f;
                     float base_lightness = has_recent_data ? 1.0f : 0.6f;
+                    float alert_hue = HUE_RED;
                     if (alerts[alert_idx].suppressed)
                     {
-                        base_saturation = 0.0f;
-                        base_lightness = 0.6f;
+                        if (alt_colors)
+                        {
+                            alert_hue     = HUE_PINK;
+                            base_saturation = 1.0f;
+                            base_lightness  = 0.6f;
+                        }
+                        else
+                        {
+                            base_saturation = 0.0f;
+                            base_lightness  = 0.6f;
+                        }
+                    }
+                    else if (alt_colors)
+                    {
+                        base_lightness *= 0.45f;
                     }
 
                     for (int w = x; w < x + block_size - 1; ++w)
@@ -626,7 +654,7 @@ int main()
                             if (age[w][h] < lifetime[w][h] * 0.75f)
                             {
                                 graphics.set_pen(graphics.create_pen_hsv(
-                                    HUE_RED, base_saturation, base_lightness));
+                                    alert_hue, base_saturation, base_lightness));
                             }
                             else if (age[w][h] < lifetime[w][h] * 0.92f)
                             {
@@ -634,7 +662,7 @@ int main()
                                     (lifetime[w][h] * 0.92f - age[w][h])
                                     * 5.88f / lifetime[w][h];
                                 graphics.set_pen(graphics.create_pen_hsv(
-                                    HUE_RED, base_saturation,
+                                    alert_hue, base_saturation,
                                     base_lightness * decay));
                             }
                             else
