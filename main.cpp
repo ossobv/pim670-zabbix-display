@@ -117,13 +117,6 @@ bool c_button_prev = false;
 bool gol_grid[32][32];
 uint32_t gol_next_update;
 uint32_t doom_face_until;
-std::vector<ZabbixAlert> real_alerts;
-bool alerts_overridden = false;
-bool vol_up_prev = false;
-bool vol_down_prev = false;
-bool lux_up_prev = false;
-bool lux_down_prev = false;
-bool d_button_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
@@ -520,31 +513,31 @@ int main()
                     }
                 }
                 http_response.clear();
-                if (std::equal(results.begin(), results.end(), real_alerts.begin(),
-                               real_alerts.end()))
+                if (std::equal(results.begin(), results.end(), alerts.begin()))
                 {
                     // no change
                     printf("No changes\n");
                 }
                 else
                 {
-                    printf("Alerts changed\n");
+                    printf("Alerts changef\n");
                 }
-                // Compare against real_alerts (not user-faked alerts) for sounds.
+                // Check for new unsuppressed (red) alerts.
                 bool has_new_red = false;
                 for (const auto& r : results)
                 {
                     if (!r.suppressed
                         && !std::any_of(
-                            real_alerts.begin(), real_alerts.end(),
+                            alerts.begin(), alerts.end(),
                             [&r](const ZabbixAlert& a) { return r == a; }))
                     {
                         has_new_red = true;
                         break;
                     }
                 }
+                // Check for cleared unsuppressed (red) alerts.
                 bool has_cleared_red = false;
-                for (const auto& a : real_alerts)
+                for (const auto& a : alerts)
                 {
                     if (!a.suppressed
                         && !std::any_of(
@@ -562,10 +555,8 @@ int main()
                 }
                 else if (has_cleared_red)
                     play_clear_sound();
-                // API data replaces both real and displayed alerts.
-                real_alerts = results;
+                // Replace old. We have no transitions yet.
                 alerts = results;
-                alerts_overridden = false;
                 last_update = millis();
                 app_state = ST_TRANSITION;
             }
@@ -605,70 +596,15 @@ int main()
             sound_until = 0;
         }
 
-        /* Brightness held-adjust. */
+        /* Monitor +/- buttons. */
         if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP))
+        {
             cosmic_unicorn.adjust_brightness(+0.01);
+        }
         if (cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN))
+        {
             cosmic_unicorn.adjust_brightness(-0.01);
-
-        /* Volume up/down: inject/remove fake active alert (rising edge). */
-        bool vol_up = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_VOLUME_UP);
-        if (vol_up && !vol_up_prev)
-        {
-            alerts.push_back(ZabbixAlert(0, 0xFFFFFFFF, 5, 0));
-            alerts_overridden = true;
         }
-        vol_up_prev = vol_up;
-
-        bool vol_down = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_VOLUME_DOWN);
-        if (vol_down && !vol_down_prev)
-        {
-            for (auto it = alerts.end(); it != alerts.begin(); )
-            {
-                --it;
-                if (!it->suppressed)
-                {
-                    alerts.erase(it);
-                    break;
-                }
-            }
-            alerts_overridden = (alerts != real_alerts);
-        }
-        vol_down_prev = vol_down;
-
-        /* Lux up/down: inject/remove fake suppressed alert (rising edge). */
-        bool lux_up = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_UP);
-        if (lux_up && !lux_up_prev)
-        {
-            alerts.push_back(ZabbixAlert(0, 0xFFFFFFFE, 5, 1));
-            alerts_overridden = true;
-        }
-        lux_up_prev = lux_up;
-
-        bool lux_down = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_BRIGHTNESS_DOWN);
-        if (lux_down && !lux_down_prev)
-        {
-            for (auto it = alerts.end(); it != alerts.begin(); )
-            {
-                --it;
-                if (it->suppressed)
-                {
-                    alerts.erase(it);
-                    break;
-                }
-            }
-            alerts_overridden = (alerts != real_alerts);
-        }
-        lux_down_prev = lux_down;
-
-        /* D button: reset to real API alerts. */
-        bool d_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_D);
-        if (d_button && !d_button_prev)
-        {
-            alerts = real_alerts;
-            alerts_overridden = false;
-        }
-        d_button_prev = d_button;
 
         /* Toggle alt color scheme on A button (rising edge). */
         bool a_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_A);
@@ -880,22 +816,15 @@ int main()
         }
         } /* end else (normal display) */
 
-        /* Status pixel at (0,0): pink = overridden, else connection health. */
+        /* Connection health pixel at (0,0). */
         {
-            if (alerts_overridden)
-            {
-                graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.9f));
-            }
+            uint32_t age_ms = millis() - last_update;
+            if (age_ms < (uint32_t)updates_at_least_every)
+                graphics.set_pen(graphics.create_pen_hsv(HUE_GREEN, 1.0f, 0.8f));
+            else if (age_ms < 120000)
+                graphics.set_pen(graphics.create_pen_hsv(HUE_ORANGE, 1.0f, 0.8f));
             else
-            {
-                uint32_t age_ms = millis() - last_update;
-                if (age_ms < (uint32_t)updates_at_least_every)
-                    graphics.set_pen(graphics.create_pen_hsv(HUE_GREEN, 1.0f, 0.8f));
-                else if (age_ms < 120000)
-                    graphics.set_pen(graphics.create_pen_hsv(HUE_ORANGE, 1.0f, 0.8f));
-                else
-                    graphics.set_pen(graphics.create_pen_hsv(HUE_RED, 1.0f, 0.8f));
-            }
+                graphics.set_pen(graphics.create_pen_hsv(HUE_RED, 1.0f, 0.8f));
             graphics.pixel(Point(0, 0));
         }
 
