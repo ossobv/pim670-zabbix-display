@@ -653,7 +653,7 @@ int main()
         /* D button: cycle background animation mode. */
         bool d_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_D);
         if (d_button && !d_button_prev)
-            bg_mode = (bg_mode + 1) % 5;
+            bg_mode = (bg_mode + 1) % 6;
         d_button_prev = d_button;
 
         graphics.set_pen(0, 0, 0);
@@ -773,6 +773,19 @@ int main()
                             graphics.set_pen(graphics.create_pen_hsv(
                                 bg_hue, saturation,
                                 lightness * (1.0f - dist / 6.0f)));
+                        else
+                            goto next_pixel;
+                    }
+                    break;
+
+                case 5: /* Sweep fast: multiple rapid diagonal fronts. */
+                    {
+                        float pos  = fmodf(millis() * 0.15f, 30.0f);
+                        float dist = fmodf(pos - (x + y) * 30.0f / 64.0f + 30.0f, 30.0f);
+                        if (dist < 5.0f)
+                            graphics.set_pen(graphics.create_pen_hsv(
+                                bg_hue, saturation,
+                                lightness * (1.0f - dist / 5.0f)));
                         else
                             goto next_pixel;
                     }
