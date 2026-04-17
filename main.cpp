@@ -107,6 +107,8 @@ State app_state;
 int http_state;
 uint32_t wait_until;
 uint32_t sound_until;
+int sound_repeats_remaining;
+uint32_t next_beep_at;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -160,11 +162,11 @@ int is_after(uint32_t until)
     return (int32_t)(until - millis()) < 0;
 }
 
-void play_alert_sound()
+void start_beep(uint16_t freq, uint8_t waveform, int repeats)
 {
     auto& ch = cosmic_unicorn.synth_channel(0);
-    ch.waveforms  = pimoroni::Waveform::SQUARE;
-    ch.frequency  = 880;
+    ch.waveforms  = waveform;
+    ch.frequency  = freq;
     ch.volume     = 0xffff;
     ch.attack_ms  = 5;
     ch.decay_ms   = 200;
@@ -172,7 +174,19 @@ void play_alert_sound()
     ch.release_ms = 10;
     ch.trigger_attack();
     cosmic_unicorn.play_synth();
-    sound_until = millis() + 400;
+    sound_repeats_remaining = repeats - 1;
+    next_beep_at  = millis() + 250;
+    sound_until   = millis() + 250 * repeats + 150;
+}
+
+void play_alert_sound()
+{
+    start_beep(880, pimoroni::Waveform::SQUARE, 4);
+}
+
+void play_clear_sound()
+{
+    start_beep(1320, pimoroni::Waveform::TRIANGLE, 1);
 }
 
 void update_from_config()
@@ -273,7 +287,7 @@ int main()
 
     /* Init display (and serial port?). */
     cosmic_unicorn.init();
-    play_alert_sound();
+    play_clear_sound();
 
     /* Wait a bit. This sleep allows you to attach a serial console
      * (ttyACM0) to get debug info from the start. */
@@ -458,20 +472,35 @@ int main()
                     printf("Alerts changef\n");
                 }
                 // Check for new unsuppressed (red) alerts.
+                bool has_new_red = false;
                 for (const auto& r : results)
                 {
-                    if (!r.suppressed)
-                    {
-                        bool found = std::any_of(
+                    if (!r.suppressed
+                        && !std::any_of(
                             alerts.begin(), alerts.end(),
-                            [&r](const ZabbixAlert& a) { return r == a; });
-                        if (!found)
-                        {
-                            play_alert_sound();
-                            break;
-                        }
+                            [&r](const ZabbixAlert& a) { return r == a; }))
+                    {
+                        has_new_red = true;
+                        break;
                     }
                 }
+                // Check for cleared unsuppressed (red) alerts.
+                bool has_cleared_red = false;
+                for (const auto& a : alerts)
+                {
+                    if (!a.suppressed
+                        && !std::any_of(
+                            results.begin(), results.end(),
+                            [&a](const ZabbixAlert& r) { return a == r; }))
+                    {
+                        has_cleared_red = true;
+                        break;
+                    }
+                }
+                if (has_new_red)
+                    play_alert_sound();
+                else if (has_cleared_red)
+                    play_clear_sound();
                 // Replace old. We have no transitions yet.
                 alerts = results;
                 last_update = millis();
@@ -500,7 +529,13 @@ int main()
             break;
         }
 
-        /* Stop synth once alert sound has played. */
+        /* Handle beep repeats and stop synth when done. */
+        if (sound_repeats_remaining > 0 && is_after(next_beep_at))
+        {
+            cosmic_unicorn.synth_channel(0).trigger_attack();
+            sound_repeats_remaining--;
+            next_beep_at = millis() + 250;
+        }
         if (sound_until && is_after(sound_until))
         {
             cosmic_unicorn.stop_playing();
