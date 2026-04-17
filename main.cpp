@@ -4,6 +4,7 @@
 
 /* Standard header files. */
 
+#include <algorithm>
 #include <cmath> // for std::ceil
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +106,7 @@ float age[32][32];
 State app_state;
 int http_state;
 uint32_t wait_until;
+uint32_t sound_until;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -156,6 +158,21 @@ uint32_t millis()
 int is_after(uint32_t until)
 {
     return (int32_t)(until - millis()) < 0;
+}
+
+void play_alert_sound()
+{
+    auto& ch = cosmic_unicorn.synth_channel(0);
+    ch.waveforms  = pimoroni::Waveform::SQUARE;
+    ch.frequency  = 880;
+    ch.volume     = 0x4fff;
+    ch.attack_ms  = 5;
+    ch.decay_ms   = 200;
+    ch.sustain    = 0;
+    ch.release_ms = 10;
+    ch.trigger_attack();
+    cosmic_unicorn.play_synth();
+    sound_until = millis() + 400;
 }
 
 void update_from_config()
@@ -439,6 +456,21 @@ int main()
                 {
                     printf("Alerts changef\n");
                 }
+                // Check for new unsuppressed (red) alerts.
+                for (const auto& r : results)
+                {
+                    if (!r.suppressed)
+                    {
+                        bool found = std::any_of(
+                            alerts.begin(), alerts.end(),
+                            [&r](const ZabbixAlert& a) { return r == a; });
+                        if (!found)
+                        {
+                            play_alert_sound();
+                            break;
+                        }
+                    }
+                }
                 // Replace old. We have no transitions yet.
                 alerts = results;
                 last_update = millis();
@@ -465,6 +497,13 @@ int main()
                 app_state = ST_DO_REQUEST;
             }
             break;
+        }
+
+        /* Stop synth once alert sound has played. */
+        if (sound_until && is_after(sound_until))
+        {
+            cosmic_unicorn.stop_playing();
+            sound_until = 0;
         }
 
         /* Monitor +/- buttons. */
