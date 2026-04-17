@@ -980,7 +980,8 @@ int main()
         }
         } /* end else (normal display) */
 
-        /* Connection health pixel at (0,0). */
+        /* Connection health pixel at (0,0) — blinks at 1 Hz. */
+        if ((millis() / 500) % 2 == 0)
         {
             uint32_t age_ms = millis() - last_update;
             if (age_ms < (uint32_t)updates_at_least_every)
