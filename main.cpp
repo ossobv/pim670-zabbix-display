@@ -874,7 +874,7 @@ int main()
                 int tx = 32 - text_w;
                 int ty = 25;
                 graphics.set_pen(0, 0, 0);
-                graphics.rectangle(Rect(tx, ty - 1, text_w, 9));
+                graphics.rectangle(Rect(tx - 1, ty - 1, text_w + 1, 9));
                 if (alt_colors)
                     graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.8f));
                 else
