@@ -375,7 +375,6 @@ int main()
 
     /* Init display (and serial port?). */
     cosmic_unicorn.init();
-    play_clear_sound();
 
     /* Wait a bit. This sleep allows you to attach a serial console
      * (ttyACM0) to get debug info from the start. */
