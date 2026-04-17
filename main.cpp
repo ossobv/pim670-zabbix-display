@@ -113,7 +113,6 @@ bool b_button_prev = false;
 bool show_suppressed_count = false;
 bool c_button_prev = false;
 bool gol_grid[32][32];
-uint32_t doom_face_until;
 uint32_t gol_next_update;
 uint32_t sound_until;
 int sound_repeats_remaining;
@@ -215,64 +214,6 @@ void gol_step()
     for (int y = 0; y < 32; ++y)
         for (int x = 0; x < 32; ++x)
             gol_grid[x][y] = next[x][y];
-}
-
-void draw_doom_face()
-{
-    /* Helmet: olive oval covering the full head. */
-    graphics.set_pen(graphics.create_pen_hsv(0.17f, 0.52f, 0.38f));
-    for (int y = 1; y < 27; ++y)
-    {
-        float dy = (y - 13.0f) / 12.5f;
-        if (dy * dy >= 1.0f) continue;
-        float dx = sqrtf(1.0f - dy * dy) * 12.0f;
-        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
-            graphics.pixel(Point(x, y));
-    }
-    /* Skin: tan oval covering the lower face. */
-    graphics.set_pen(graphics.create_pen_hsv(0.07f, 0.45f, 0.85f));
-    for (int y = 9; y < 27; ++y)
-    {
-        float dy = (y - 17.5f) / 8.5f;
-        if (dy * dy >= 1.0f) continue;
-        float dx = sqrtf(1.0f - dy * dy) * 8.0f;
-        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
-            graphics.pixel(Point(x, y));
-    }
-    /* Worried eyebrows (inner ends raised). */
-    graphics.set_pen(graphics.create_pen(35, 20, 12));
-    graphics.pixel(Point(9,  11)); graphics.pixel(Point(10, 11));
-    graphics.pixel(Point(11, 10)); graphics.pixel(Point(12, 10));
-    graphics.pixel(Point(20, 10)); graphics.pixel(Point(21, 10));
-    graphics.pixel(Point(22, 11)); graphics.pixel(Point(23, 11));
-    /* Eye whites. */
-    graphics.set_pen(graphics.create_pen(240, 235, 220));
-    graphics.rectangle(Rect(8,  12, 5, 3));
-    graphics.rectangle(Rect(19, 12, 5, 3));
-    /* Pupils. */
-    graphics.set_pen(graphics.create_pen(15, 10, 8));
-    graphics.rectangle(Rect(10, 13, 2, 2));
-    graphics.rectangle(Rect(21, 13, 2, 2));
-    /* Nose. */
-    graphics.set_pen(graphics.create_pen_hsv(0.07f, 0.60f, 0.58f));
-    graphics.rectangle(Rect(14, 17, 4, 2));
-    graphics.pixel(Point(13, 18)); graphics.pixel(Point(18, 18));
-    /* Mouth: open scared grimace. */
-    graphics.set_pen(graphics.create_pen(75, 8, 8));
-    graphics.rectangle(Rect(10, 20, 12, 5));
-    /* Teeth top row. */
-    graphics.set_pen(graphics.create_pen(225, 220, 200));
-    graphics.rectangle(Rect(10, 20, 12, 2));
-    /* Tooth dividers. */
-    graphics.set_pen(graphics.create_pen(75, 8, 8));
-    for (int x = 13; x < 22; x += 3)
-        graphics.pixel(Point(x, 20));
-    /* Tongue. */
-    graphics.set_pen(graphics.create_pen(160, 35, 35));
-    graphics.rectangle(Rect(12, 23, 8, 2));
-    /* Collar. */
-    graphics.set_pen(graphics.create_pen(65, 70, 60));
-    graphics.rectangle(Rect(7, 28, 18, 3));
 }
 
 void play_alert_sound()
@@ -594,10 +535,7 @@ int main()
                     }
                 }
                 if (has_new_red)
-                {
                     play_alert_sound();
-                    doom_face_until = millis() + 2000;
-                }
                 else if (has_cleared_red)
                     play_clear_sound();
                 // Replace old. We have no transitions yet.
@@ -714,11 +652,7 @@ int main()
 
         float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
 
-        if (doom_face_until && !is_after(doom_face_until))
-        {
-            draw_doom_face();
-        }
-        else if (game_of_life)
+        if (game_of_life)
         {
             /* Step the Game of Life at ~150 ms per generation. */
             if (is_after(gol_next_update))
