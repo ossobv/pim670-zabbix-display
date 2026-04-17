@@ -165,7 +165,7 @@ void play_alert_sound()
     auto& ch = cosmic_unicorn.synth_channel(0);
     ch.waveforms  = pimoroni::Waveform::SQUARE;
     ch.frequency  = 880;
-    ch.volume     = 0x4fff;
+    ch.volume     = 0xffff;
     ch.attack_ms  = 5;
     ch.decay_ms   = 200;
     ch.sustain    = 0;
