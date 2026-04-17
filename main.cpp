@@ -656,7 +656,7 @@ int main()
          * the bottom for the number. */
         bool count_mode = show_suppressed_count && suppressed_count > 0;
         int alerts_to_show = count_mode ? active_count : (int)alerts.size();
-        int available = 31;
+        int available = count_mode ? 25 : 31;
 
         float alert_sqrt = sqrt(alerts_to_show);
         int row_col_size = static_cast<int>(std::ceil(alert_sqrt));
@@ -871,8 +871,8 @@ int main()
                 std::string count_str = std::to_string(suppressed_count);
                 graphics.set_font(&font8);
                 int32_t text_w = graphics.measure_text(count_str, 1.0f, 1);
-                int tx = (32 - text_w) / 2;
-                int ty = 12;
+                int tx = 32 - text_w;
+                int ty = 26;
                 if (alt_colors)
                     graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.8f));
                 else
