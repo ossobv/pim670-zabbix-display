@@ -218,33 +218,19 @@ void gol_step()
 
 void draw_all_clear()
 {
-    /* Yellow-green face oval. */
     graphics.set_pen(graphics.create_pen_hsv(0.22f, 0.75f, 0.95f));
-    for (int y = 3; y < 29; ++y)
-    {
-        float dy = (y - 15.0f) / 12.0f;
-        if (dy * dy >= 1.0f) continue;
-        float dx = sqrtf(1.0f - dy * dy) * 12.0f;
-        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
-            graphics.pixel(Point(x, y));
-    }
+    graphics.rectangle(Rect(8, 4, 16, 24));   /* face */
+    graphics.rectangle(Rect(6, 8, 20, 16));
     /* Eyes. */
     graphics.set_pen(graphics.create_pen(20, 15, 5));
-    graphics.rectangle(Rect(10, 10, 3, 3));
-    graphics.rectangle(Rect(19, 10, 3, 3));
-    /* Smile arc (bottom of circle, center (16,14) radius 7). */
-    graphics.set_pen(graphics.create_pen(20, 15, 5));
-    for (int x = 10; x <= 22; ++x)
-    {
-        float dx = x - 16.0f;
-        int sy = (int)(14.0f + sqrtf(49.0f - dx * dx));
-        graphics.pixel(Point(x, sy));
-        graphics.pixel(Point(x, sy - 1));
-    }
-    /* Rosy cheeks. */
-    graphics.set_pen(graphics.create_pen_hsv(0.0f, 0.55f, 0.85f));
-    graphics.rectangle(Rect(7, 16, 3, 2));
-    graphics.rectangle(Rect(22, 16, 3, 2));
+    graphics.rectangle(Rect(10, 11, 3, 3));
+    graphics.rectangle(Rect(19, 11, 3, 3));
+    /* Smile. */
+    graphics.pixel(Point(11, 20)); graphics.pixel(Point(12, 21));
+    graphics.pixel(Point(13, 22)); graphics.pixel(Point(14, 22));
+    graphics.pixel(Point(15, 22)); graphics.pixel(Point(16, 22));
+    graphics.pixel(Point(17, 22)); graphics.pixel(Point(18, 22));
+    graphics.pixel(Point(19, 21)); graphics.pixel(Point(20, 20));
 }
 
 void play_alert_sound()
