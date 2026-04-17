@@ -129,6 +129,7 @@ bool whoop_active = false;
 uint32_t whoop_start_ms = 0;
 bool coin_active = false;
 uint32_t coin_start_ms = 0;
+bool initial_load = true;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -265,7 +266,7 @@ void play_clear_sound()
     auto& ch = cosmic_unicorn.synth_channel(0);
     ch.waveforms  = pimoroni::Waveform::SQUARE;
     ch.frequency  = 988;
-    ch.volume     = 0xffff;
+    ch.volume     = 0x5fff;
     ch.attack_ms  = 5;
     ch.decay_ms   = 10;
     ch.sustain    = 0xffff;
@@ -584,15 +585,19 @@ int main()
                         break;
                     }
                 }
-                if (has_new_red)
+                if (!initial_load)
                 {
-                    if (doom_face_enabled) {
-                        play_alert_sound();
-                        doom_face_until = millis() + 2000;
+                    if (has_new_red)
+                    {
+                        if (doom_face_enabled) {
+                            play_alert_sound();
+                            doom_face_until = millis() + 2000;
+                        }
                     }
+                    else if (has_cleared_red && doom_face_enabled)
+                        play_clear_sound();
                 }
-                else if (has_cleared_red && doom_face_enabled)
-                    play_clear_sound();
+                initial_load = false;
                 // Replace old. We have no transitions yet.
                 alerts = results;
                 last_update = millis();
