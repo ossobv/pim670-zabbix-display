@@ -233,8 +233,8 @@ void draw_all_clear()
     graphics.rectangle(Rect(19, 11, 4, 4));
     /* Mouth: long rectangle with squares at top corners. */
     graphics.rectangle(Rect(10, 21, 12, 3));
-    graphics.rectangle(Rect(10, 19, 2, 2));
-    graphics.rectangle(Rect(20, 19, 2, 2));
+    graphics.rectangle(Rect(8,  19, 2, 2));
+    graphics.rectangle(Rect(22, 19, 2, 2));
 }
 
 void play_alert_sound()
