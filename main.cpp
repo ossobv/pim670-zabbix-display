@@ -30,6 +30,8 @@
 /* Our stuff. */
 
 #include <string>
+#include "doom_alert.h"
+#include "doom_resolved.h"
 
 typedef enum States
 {
@@ -114,6 +116,7 @@ bool show_suppressed_count = false;
 bool c_button_prev = false;
 bool gol_grid[32][32];
 uint32_t gol_next_update;
+uint32_t doom_face_until;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
@@ -216,25 +219,15 @@ void gol_step()
             gol_grid[x][y] = next[x][y];
 }
 
-void draw_all_clear()
+void draw_xpm_image(const uint8_t* img)
 {
-    /* Circle face. */
-    graphics.set_pen(graphics.create_pen_hsv(0.22f, 0.75f, 0.95f));
-    for (int y = 3; y < 29; ++y)
-    {
-        float dy = y - 16.0f;
-        float dx = sqrtf(169.0f - dy * dy); /* radius 13 */
-        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x)
+        {
+            const uint8_t* p = img + (y * 32 + x) * 3;
+            graphics.set_pen(graphics.create_pen(p[0], p[1], p[2]));
             graphics.pixel(Point(x, y));
-    }
-    graphics.set_pen(graphics.create_pen(20, 15, 5));
-    /* Eyes: 2 squares. */
-    graphics.rectangle(Rect(9,  11, 4, 4));
-    graphics.rectangle(Rect(19, 11, 4, 4));
-    /* Mouth: long rectangle with squares at top corners. */
-    graphics.rectangle(Rect(10, 21, 12, 3));
-    graphics.rectangle(Rect(8,  19, 2, 2));
-    graphics.rectangle(Rect(22, 19, 2, 2));
+        }
 }
 
 void play_alert_sound()
@@ -556,7 +549,10 @@ int main()
                     }
                 }
                 if (has_new_red)
+                {
                     play_alert_sound();
+                    doom_face_until = millis() + 2000;
+                }
                 else if (has_cleared_red)
                     play_clear_sound();
                 // Replace old. We have no transitions yet.
@@ -673,9 +669,13 @@ int main()
 
         float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
 
-        if (active_count == 0 && !game_of_life)
+        if (doom_face_until && !is_after(doom_face_until))
         {
-            draw_all_clear();
+            draw_xpm_image(DOOM_ALERT);
+        }
+        else if (active_count == 0 && !game_of_life)
+        {
+            draw_xpm_image(DOOM_RESOLVED);
         }
         else if (game_of_life)
         {
