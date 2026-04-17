@@ -108,6 +108,10 @@ int http_state;
 uint32_t wait_until;
 bool alt_colors = false;
 bool a_button_prev = false;
+bool game_of_life = false;
+bool b_button_prev = false;
+bool gol_grid[32][32];
+uint32_t gol_next_update;
 uint32_t sound_until;
 int sound_repeats_remaining;
 uint32_t next_beep_at;
@@ -181,6 +185,33 @@ void start_beep(uint16_t freq, uint8_t waveform, int repeats)
     sound_repeats_remaining = repeats - 1;
     next_beep_at  = millis() + 250;
     sound_until   = millis() + 250 * repeats + 150;
+}
+
+void gol_seed()
+{
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x)
+            gol_grid[x][y] = (rand() % 3) == 0;
+}
+
+void gol_step()
+{
+    bool next[32][32];
+    for (int y = 0; y < 32; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            int n = 0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx)
+                    if (dx || dy)
+                        n += gol_grid[(x + dx + 32) % 32][(y + dy + 32) % 32];
+            next[x][y] = n == 3 || (gol_grid[x][y] && n == 2);
+        }
+    }
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x)
+            gol_grid[x][y] = next[x][y];
 }
 
 void play_alert_sound()
@@ -564,6 +595,19 @@ int main()
         }
         a_button_prev = a_button;
 
+        /* Toggle Game of Life on B button (rising edge). */
+        bool b_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_B);
+        if (b_button && !b_button_prev)
+        {
+            game_of_life = !game_of_life;
+            if (game_of_life)
+            {
+                gol_seed();
+                gol_next_update = millis();
+            }
+        }
+        b_button_prev = b_button;
+
         graphics.set_pen(0, 0, 0);
         graphics.clear();
 
@@ -587,6 +631,30 @@ int main()
         float lightness = has_recent_data ? 0.6 : 0.3;
 
         float bg_hue = alt_colors ? HUE_BLUE : HUE_LIME;
+
+        if (game_of_life)
+        {
+            /* Step the Game of Life at ~150 ms per generation. */
+            if (is_after(gol_next_update))
+            {
+                gol_step();
+                gol_next_update = millis() + 150;
+            }
+            for (int y = 0; y < 32; ++y)
+            {
+                for (int x = 0; x < 32; ++x)
+                {
+                    if (gol_grid[x][y])
+                    {
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, 1.0f, 1.0f));
+                        graphics.pixel(Point(x, y));
+                    }
+                }
+            }
+        }
+        else
+        {
 
         /* Update eighties super computer. */
         for (int y = 0; y < 32; ++y)
@@ -677,6 +745,7 @@ int main()
                 }
             }
         }
+        } /* end else (normal display) */
 
         /* Update display and sleep a bit. */
         cosmic_unicorn.update(&graphics);
