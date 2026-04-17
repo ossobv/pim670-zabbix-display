@@ -880,7 +880,8 @@ int main()
                             }
                             else
                             {
-                                graphics.set_pen(0, 0, 0);
+                                graphics.set_pen(graphics.create_pen_hsv(
+                                    bg_hue, saturation, lightness * 0.5f));
                             }
                             graphics.pixel(Point(w, h));
                         }
