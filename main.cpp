@@ -110,30 +110,14 @@ int http_state;
 uint32_t wait_until;
 bool alt_colors = false;
 bool a_button_prev = false;
-bool stereo_madness = false;
+bool game_of_life = false;
 bool b_button_prev = false;
 bool show_suppressed_count = true;
 int bg_mode = 3;
 bool d_button_prev = false;
 bool c_button_prev = false;
-int  sm_note_idx = 0;
-uint32_t sm_next_note_at = 0;
-
-/* Stereo Madness main synth lead — A minor, ~163 BPM.
- * 16th=92ms 8th=184ms quarter=368ms; phrases total 1472ms each. */
-static const uint16_t SM_FREQS[] = {
-    880,  0, 880, 1047, 988, 880, 784,   0,   /* phrase A */
-    880,  0, 880, 1047, 988, 784, 698,   0,   /* phrase B */
-    659,  0, 659,  784, 740, 659, 587,   0,   /* phrase C */
-    659,  0, 659,  784, 740, 587, 523,   0,   /* phrase D */
-};
-static const uint16_t SM_DURS[] = {
-    184, 92,  92,  92,  92,  92, 368, 460,
-    184, 92,  92,  92,  92,  92, 368, 460,
-    184, 92,  92,  92,  92,  92, 368, 460,
-    184, 92,  92,  92,  92,  92, 368, 460,
-};
-static const int SM_NOTES = 32;
+bool gol_grid[32][32];
+uint32_t gol_next_update;
 uint32_t doom_face_until;
 bool doom_face_enabled = true;
 bool vol_up_prev = false;
@@ -226,6 +210,32 @@ void start_beep(uint16_t freq, uint8_t waveform, int repeats)
     sound_until   = millis() + 250 * repeats + 150;
 }
 
+void gol_seed()
+{
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x)
+            gol_grid[x][y] = (rand() % 3) == 0;
+}
+
+void gol_step()
+{
+    bool next[32][32];
+    for (int y = 0; y < 32; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            int n = 0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx)
+                    if (dx || dy)
+                        n += gol_grid[(x + dx + 32) % 32][(y + dy + 32) % 32];
+            next[x][y] = n == 3 || (gol_grid[x][y] && n == 2);
+        }
+    }
+    for (int y = 0; y < 32; ++y)
+        for (int x = 0; x < 32; ++x)
+            gol_grid[x][y] = next[x][y];
+}
 
 void draw_xpm_image(const uint8_t* img)
 {
@@ -236,17 +246,6 @@ void draw_xpm_image(const uint8_t* img)
             graphics.set_pen(graphics.create_pen(p[0], p[1], p[2]));
             graphics.pixel(Point(x, y));
         }
-}
-
-void setup_sm_channel()
-{
-    auto& ch = cosmic_unicorn.synth_channel(0);
-    ch.waveforms  = pimoroni::Waveform::SQUARE;
-    ch.volume     = 0x9fff;
-    ch.attack_ms  = 5;
-    ch.decay_ms   = 20;
-    ch.sustain    = 0xcfff;
-    ch.release_ms = 30;
 }
 
 void play_alert_sound()
@@ -662,20 +661,6 @@ int main()
             break;
         }
 
-        /* Advance Stereo Madness note sequence (pauses when alert sound plays). */
-        if (stereo_madness && sound_until == 0 && is_after(sm_next_note_at))
-        {
-            uint16_t freq = SM_FREQS[sm_note_idx];
-            auto& ch = cosmic_unicorn.synth_channel(0);
-            ch.frequency = freq > 0 ? freq : 1;
-            if (freq > 0)
-                ch.trigger_attack();
-            else
-                ch.trigger_release();
-            sm_next_note_at = millis() + SM_DURS[sm_note_idx];
-            sm_note_idx = (sm_note_idx + 1) % SM_NOTES;
-        }
-
         /* Advance flagpole note sequence. */
         if (flagpole_active && is_after(flagpole_next_at))
         {
@@ -733,16 +718,6 @@ int main()
             whoop_active = false;
             coin_active = false;
             flagpole_active = false;
-            if (stereo_madness)
-            {
-                setup_sm_channel();
-                sm_next_note_at = millis() + 100;
-                cosmic_unicorn.play_synth();
-            }
-            else
-            {
-                cosmic_unicorn.stop_playing();
-            }
         }
 
         /* Volume buttons toggle doom face. */
@@ -773,21 +748,15 @@ int main()
         }
         a_button_prev = a_button;
 
-        /* Toggle Stereo Madness on B button (rising edge). */
+        /* Toggle Game of Life on B button (rising edge). */
         bool b_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_B);
         if (b_button && !b_button_prev)
         {
-            stereo_madness = !stereo_madness;
-            if (stereo_madness)
+            game_of_life = !game_of_life;
+            if (game_of_life)
             {
-                sm_note_idx    = 0;
-                sm_next_note_at = millis();
-                setup_sm_channel();
-                cosmic_unicorn.play_synth();
-            }
-            else
-            {
-                cosmic_unicorn.stop_playing();
+                gol_seed();
+                gol_next_update = millis();
             }
         }
         b_button_prev = b_button;
@@ -847,9 +816,30 @@ int main()
         {
             draw_xpm_image(DOOM_ALERT);
         }
-        else if (doom_face_enabled && alerts.empty())
+        else if (doom_face_enabled && alerts.empty() && !game_of_life)
         {
             draw_xpm_image(DOOM_RESOLVED);
+        }
+        else if (game_of_life)
+        {
+            /* Step the Game of Life at ~150 ms per generation. */
+            if (is_after(gol_next_update))
+            {
+                gol_step();
+                gol_next_update = millis() + 150;
+            }
+            for (int y = 0; y < 32; ++y)
+            {
+                for (int x = 0; x < 32; ++x)
+                {
+                    if (gol_grid[x][y])
+                    {
+                        graphics.set_pen(graphics.create_pen_hsv(
+                            bg_hue, 1.0f, 1.0f));
+                        graphics.pixel(Point(x, y));
+                    }
+                }
+            }
         }
         else
         {
@@ -1024,7 +1014,7 @@ int main()
             }
         }
         /* Display suppressed alert count in bottom-right corner. */
-        if (count_mode)
+        if (count_mode && !game_of_life)
         {
             {
                 std::string count_str = std::to_string(suppressed_count);
