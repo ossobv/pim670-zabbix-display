@@ -881,7 +881,7 @@ int main()
                             else
                             {
                                 graphics.set_pen(graphics.create_pen_hsv(
-                                    bg_hue, saturation, lightness * 0.5f));
+                                    alert_hue, base_saturation, base_lightness * 0.5f));
                             }
                             graphics.pixel(Point(w, h));
                         }
