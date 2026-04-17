@@ -813,7 +813,7 @@ int main()
         {
             draw_xpm_image(DOOM_ALERT);
         }
-        else if (doom_face_enabled && active_count == 0 && !game_of_life)
+        else if (doom_face_enabled && alerts.empty() && !game_of_life)
         {
             draw_xpm_image(DOOM_RESOLVED);
         }
