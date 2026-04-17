@@ -548,16 +548,16 @@ int main()
                     {
                         for (int h = y; h < y + block_size - 1; ++h)
                         {
-                            if (age[w][h] < lifetime[w][h] * 0.8f)
+                            if (age[w][h] < lifetime[w][h] * 0.75f)
                             {
                                 graphics.set_pen(graphics.create_pen_hsv(
                                     HUE_RED, base_saturation, base_lightness));
                             }
-                            else if (age[w][h] < lifetime[w][h] * 0.95f)
+                            else if (age[w][h] < lifetime[w][h] * 0.92f)
                             {
                                 float decay =
-                                    (lifetime[w][h] * 0.95f - age[w][h])
-                                    * 6.67f / lifetime[w][h];
+                                    (lifetime[w][h] * 0.92f - age[w][h])
+                                    * 5.88f / lifetime[w][h];
                                 graphics.set_pen(graphics.create_pen_hsv(
                                     HUE_RED, base_saturation,
                                     base_lightness * decay));
