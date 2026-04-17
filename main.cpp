@@ -780,7 +780,7 @@ int main()
 
                 case 5: /* Sweep fast: multiple rapid diagonal fronts. */
                     {
-                        float pos  = fmodf(millis() * 0.15f, 30.0f);
+                        float pos  = fmodf(millis() * 0.04f, 30.0f);
                         float dist = fmodf(pos - (x + y) * 30.0f / 64.0f + 30.0f, 30.0f);
                         if (dist < 5.0f)
                             graphics.set_pen(graphics.create_pen_hsv(
