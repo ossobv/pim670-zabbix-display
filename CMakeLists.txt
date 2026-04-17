@@ -25,6 +25,7 @@ pico_sdk_init()
 add_executable(${NAME}
     opt/config.c           # <-- Configuration file handler (optional)
     opt/httpclient.c       # <-- HTTP(S) Client (optional)
+    opt/mbedtls_time.c     # <-- mbedTLS ms_time implementation for Pico W
     zabbix/zabbix.cpp
     zabbix/tiny-json.c
     main.cpp               # <-- Start adding your own code here!

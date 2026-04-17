@@ -526,7 +526,7 @@ int main()
             }
         }
 
-        /* Write static rectangles for all alerts. */
+        /* Write animated rectangles for all alerts. */
         size_t alert_idx = 0;
         for (int y = block_offset; y < block_size * row_col_size;
              y += block_size)
@@ -536,21 +536,35 @@ int main()
             {
                 if (alert_idx < alerts.size())
                 {
-                    saturation = has_recent_data ? 1.0 : 0.5;
-                    lightness = has_recent_data ? 1.0 : 0.6;
+                    float base_saturation = has_recent_data ? 1.0f : 0.5f;
+                    float base_lightness = has_recent_data ? 1.0f : 0.6f;
                     if (alerts[alert_idx].suppressed)
                     {
-                        saturation = 0;
-                        lightness = 0.6;
+                        base_saturation = 0.0f;
+                        base_lightness = 0.6f;
                     }
-                    graphics.set_pen(graphics.create_pen_hsv(
-                        HUE_RED, saturation, lightness));
 
-                    int w;
-                    for (w = x; w < x + block_size - 1; ++w)
+                    for (int w = x; w < x + block_size - 1; ++w)
                     {
                         for (int h = y; h < y + block_size - 1; ++h)
                         {
+                            if (age[w][h] < lifetime[w][h] * 0.3f)
+                            {
+                                graphics.set_pen(graphics.create_pen_hsv(
+                                    HUE_RED, base_saturation, base_lightness));
+                            }
+                            else if (age[w][h] < lifetime[w][h] * 0.5f)
+                            {
+                                float decay =
+                                    (lifetime[w][h] * 0.5f - age[w][h]) * 5.0f;
+                                graphics.set_pen(graphics.create_pen_hsv(
+                                    HUE_RED, base_saturation,
+                                    base_lightness * decay));
+                            }
+                            else
+                            {
+                                graphics.set_pen(0, 0, 0);
+                            }
                             graphics.pixel(Point(w, h));
                         }
                     }

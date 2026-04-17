@@ -1,6 +1,7 @@
 #ifndef INCLUDED_ZABBIX_HPP
 #define INCLUDED_ZABBIX_HPP
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
