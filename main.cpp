@@ -872,7 +872,9 @@ int main()
                 graphics.set_font(&font8);
                 int32_t text_w = graphics.measure_text(count_str, 1.0f, 1);
                 int tx = 32 - text_w;
-                int ty = 26;
+                int ty = 25;
+                graphics.set_pen(0, 0, 0);
+                graphics.rectangle(Rect(tx, ty - 1, text_w, 9));
                 if (alt_colors)
                     graphics.set_pen(graphics.create_pen_hsv(HUE_PINK, 1.0f, 0.8f));
                 else
