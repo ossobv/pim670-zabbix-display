@@ -94,22 +94,17 @@ public:
     }
 };
 
-/* Rick roll note sequence (Never Gonna Give You Up chorus, A major, ~113 BPM). */
+/* Rick roll note sequence (Never Gonna Give You Up chorus, ~150 BPM). */
 struct Note { uint16_t freq; uint16_t ms; };
 static const Note RICK_ROLL[] = {
-    {440,265},{494,265},{587,265},{494,265},{740,398},{740,265},{659,663},{0,133},
-    {440,265},{494,265},{587,265},{494,265},{659,398},{659,265},{587,265},{554,265},{494,530},{0,133},
-    {440,265},{494,265},{587,265},{494,265},{587,265},{554,265},{494,663},{0,133},
-    {440,265},{494,265},{587,265},{494,265},{740,398},{740,265},{659,663},{0,133},
-    {440,265},{494,265},{587,265},{494,265},{659,398},{659,265},{587,265},{554,265},{494,530},{0,133},
-    {440,265},{494,265},{587,265},{494,265},{494,265},{440,265},{494,795},
+    {440,200},{494,200},{587,200},{494,200},{740,300},{740,200},{659,500},{0,100},
+    {440,200},{494,200},{587,200},{494,200},{659,300},{659,200},{587,200},{554,200},{494,400},{0,100},
+    {440,200},{494,200},{587,200},{494,200},{587,200},{554,200},{494,500},{0,100},
+    {440,200},{494,200},{587,200},{494,200},{740,300},{740,200},{659,500},{0,100},
+    {440,200},{494,200},{587,200},{494,200},{659,300},{659,200},{587,200},{554,200},{494,400},{0,100},
+    {440,200},{494,200},{587,200},{494,200},{494,200},{440,200},{494,600},
     {0,0}
 };
-
-/* Explosion particles. */
-struct Particle { float x, y, vx, vy, life; };
-constexpr int MAX_PARTICLES = 55;
-Particle explosion_particles[MAX_PARTICLES];
 
 /* Globals. */
 
@@ -137,8 +132,6 @@ uint32_t doom_face_until;
 bool rick_rolling = false;
 int rick_note;
 uint32_t rick_note_until;
-bool explosion_active = false;
-uint32_t explosion_next_update;
 bool d_button_prev = false;
 uint32_t sound_until;
 int sound_repeats_remaining;
@@ -242,25 +235,11 @@ void gol_step()
             gol_grid[x][y] = next[x][y];
 }
 
-void start_explosion()
-{
-    for (int i = 0; i < MAX_PARTICLES; ++i)
-    {
-        float angle = (i * 6.2832f / MAX_PARTICLES)
-                      + ((rand() % 100) / 100.0f) * 0.5f;
-        float speed = 0.15f + (rand() % 100) / 100.0f * 0.6f;
-        explosion_particles[i] = {
-            16.0f, 16.0f, cosf(angle) * speed, sinf(angle) * speed, 1.0f};
-    }
-    explosion_active    = true;
-    explosion_next_update = 0;
-}
-
 void start_rick_roll()
 {
     auto& ch = cosmic_unicorn.synth_channel(1);
     ch.waveforms  = pimoroni::Waveform::SQUARE;
-    ch.volume     = 0xdfff;
+    ch.volume     = 0x4fff;
     ch.attack_ms  = 8;
     ch.decay_ms   = 20;
     ch.sustain    = 0xffff;
@@ -691,16 +670,14 @@ int main()
         bool d_button = cosmic_unicorn.is_pressed(cosmic_unicorn.SWITCH_D);
         if (d_button && !d_button_prev)
         {
-            if (rick_rolling || explosion_active)
+            if (rick_rolling)
             {
-                rick_rolling    = false;
-                explosion_active = false;
+                rick_rolling = false;
                 cosmic_unicorn.synth_channel(1).trigger_release();
             }
             else
             {
                 start_rick_roll();
-                start_explosion();
             }
         }
         d_button_prev = d_button;
@@ -912,38 +889,6 @@ int main()
         } /* end else (normal display) */
 
         /* Explosion particles — update and render over everything. */
-        if (explosion_active)
-        {
-            if (is_after(explosion_next_update))
-            {
-                explosion_next_update = millis() + 40;
-                bool any_alive = false;
-                for (int i = 0; i < MAX_PARTICLES; ++i)
-                {
-                    auto& p = explosion_particles[i];
-                    if (p.life <= 0.0f) continue;
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.life -= 0.022f;
-                    if (p.x < 0 || p.x >= 32 || p.y < 0 || p.y >= 32)
-                        p.life = 0.0f;
-                    if (p.life > 0.0f) any_alive = true;
-                }
-                if (!any_alive) explosion_active = false;
-            }
-            for (int i = 0; i < MAX_PARTICLES; ++i)
-            {
-                const auto& p = explosion_particles[i];
-                if (p.life <= 0.0f) continue;
-                float h, s, v;
-                if (p.life > 0.7f)      { h=0.12f; s=0.15f; v=1.0f; }
-                else if (p.life > 0.4f) { h=0.07f; s=0.90f; v=0.9f; }
-                else                    { h=0.00f; s=1.00f; v=p.life/0.4f; }
-                graphics.set_pen(graphics.create_pen_hsv(h, s, v));
-                graphics.pixel(Point((int)p.x, (int)p.y));
-            }
-        }
-
         /* Connection health pixel at (0,0). */
         {
             uint32_t age_ms = millis() - last_update;
