@@ -218,19 +218,21 @@ void gol_step()
 
 void draw_all_clear()
 {
+    /* Circle face. */
     graphics.set_pen(graphics.create_pen_hsv(0.22f, 0.75f, 0.95f));
-    graphics.rectangle(Rect(8, 4, 16, 24));   /* face */
-    graphics.rectangle(Rect(6, 8, 20, 16));
-    /* Eyes. */
+    for (int y = 3; y < 29; ++y)
+    {
+        float dy = y - 16.0f;
+        float dx = sqrtf(169.0f - dy * dy); /* radius 13 */
+        for (int x = (int)(16 - dx); x <= (int)(16 + dx); ++x)
+            graphics.pixel(Point(x, y));
+    }
     graphics.set_pen(graphics.create_pen(20, 15, 5));
-    graphics.rectangle(Rect(10, 11, 3, 3));
-    graphics.rectangle(Rect(19, 11, 3, 3));
-    /* Smile. */
-    graphics.pixel(Point(11, 20)); graphics.pixel(Point(12, 21));
-    graphics.pixel(Point(13, 22)); graphics.pixel(Point(14, 22));
-    graphics.pixel(Point(15, 22)); graphics.pixel(Point(16, 22));
-    graphics.pixel(Point(17, 22)); graphics.pixel(Point(18, 22));
-    graphics.pixel(Point(19, 21)); graphics.pixel(Point(20, 20));
+    /* Eyes: 2 squares. */
+    graphics.rectangle(Rect(9,  11, 4, 4));
+    graphics.rectangle(Rect(19, 11, 4, 4));
+    /* Mouth: long rectangle. */
+    graphics.rectangle(Rect(10, 21, 12, 3));
 }
 
 void play_alert_sound()
