@@ -130,6 +130,14 @@ uint32_t whoop_start_ms = 0;
 bool coin_active = false;
 uint32_t coin_start_ms = 0;
 bool initial_load = true;
+
+/* Mario flagpole note sequence. */
+static const uint16_t FLAGPOLE_FREQS[] = {392,440,494,523,587,659,740,784,784};
+static const uint16_t FLAGPOLE_DUR[]   = { 60, 60, 60, 60, 60, 60, 60, 60,500};
+static const int FLAGPOLE_NOTES = 9;
+bool flagpole_active = false;
+int  flagpole_note   = 0;
+uint32_t flagpole_next_at = 0;
 /* We expect updates every 15 s, so after 30 s we turn gray. */
 constexpr int updates_at_least_every = 30000;
 uint32_t last_update;
@@ -275,6 +283,25 @@ void play_clear_sound()
     cosmic_unicorn.play_synth();
     sound_repeats_remaining = 0;
     sound_until = millis() + 350;
+}
+
+void play_flagpole_sound()
+{
+    whoop_active = false;
+    coin_active  = false;
+    flagpole_active  = true;
+    flagpole_note    = 0;
+    flagpole_next_at = millis();
+    auto& ch = cosmic_unicorn.synth_channel(0);
+    ch.waveforms  = pimoroni::Waveform::SQUARE;
+    ch.volume     = 0x7fff;
+    ch.attack_ms  = 5;
+    ch.decay_ms   = 20;
+    ch.sustain    = 0xcfff;
+    ch.release_ms = 40;
+    cosmic_unicorn.play_synth();
+    sound_repeats_remaining = 0;
+    sound_until = millis() + 1200;
 }
 
 void update_from_config()
@@ -594,7 +621,15 @@ int main()
                         }
                     }
                     else if (has_cleared_red && doom_face_enabled)
-                        play_clear_sound();
+                    {
+                        int new_active = 0;
+                        for (const auto& r : results)
+                            if (!r.suppressed) new_active++;
+                        if (new_active == 0)
+                            play_flagpole_sound();
+                        else
+                            play_clear_sound();
+                    }
                 }
                 initial_load = false;
                 // Replace old. We have no transitions yet.
@@ -627,6 +662,23 @@ int main()
                 app_state = ST_DO_REQUEST;
             }
             break;
+        }
+
+        /* Advance flagpole note sequence. */
+        if (flagpole_active && is_after(flagpole_next_at))
+        {
+            if (flagpole_note < FLAGPOLE_NOTES)
+            {
+                auto& ch = cosmic_unicorn.synth_channel(0);
+                ch.frequency = FLAGPOLE_FREQS[flagpole_note];
+                ch.trigger_attack();
+                flagpole_next_at = millis() + FLAGPOLE_DUR[flagpole_note];
+                flagpole_note++;
+            }
+            else
+            {
+                flagpole_active = false;
+            }
         }
 
         /* Sweep frequency for whoop sound. */
@@ -668,6 +720,7 @@ int main()
             sound_until = 0;
             whoop_active = false;
             coin_active = false;
+            flagpole_active = false;
         }
 
         /* Volume buttons toggle doom face. */
