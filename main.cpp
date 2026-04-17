@@ -235,6 +235,8 @@ void draw_xpm_image(const uint8_t* img)
         for (int x = 0; x < 32; ++x)
         {
             const uint8_t* p = img + (y * 32 + x) * 3;
+            if (p[0] == 0 && p[1] == 0 && p[2] == 0)
+                continue;
             graphics.set_pen(graphics.create_pen(p[0], p[1], p[2]));
             graphics.pixel(Point(x, y));
         }
