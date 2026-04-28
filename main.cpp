@@ -858,6 +858,11 @@ int main()
          * irrelevant for visuals. */
         uint32_t sweep_d = (sweep_now - sweep_last_ms) * 2621u;
         sweep_last_ms = sweep_now;
+        /* Why while-subtract instead of %? Cortex-M0+ has no hardware
+         * divide, so % compiles to an __aeabi_uidivmod call. Our input
+         * range is tiny (0-1 iterations on average), so a conditional
+         * subtract beats the function call. Same logic in case 5's
+         * inner fold below. */
         sweep3_phase += sweep_d;
         while (sweep3_phase >= (80u << 16)) sweep3_phase -= (80u << 16);
         sweep5_phase += sweep_d;
