@@ -844,6 +844,19 @@ int main()
         else
         {
 
+        /* Per-frame sweep phase accumulators. Kept bounded by fmodf so
+         * float precision doesn't degrade after long uptime — converting
+         * a large millis() to float quantizes it to ~64 ms steps after a
+         * week, which makes the sweep visibly judder. */
+        static uint32_t sweep_last_ms = millis();
+        static float    sweep3_phase  = 0.0f;   /* mod 80 */
+        static float    sweep5_phase  = 0.0f;   /* mod 30 */
+        uint32_t sweep_now = millis();
+        float    sweep_d   = (sweep_now - sweep_last_ms) * 0.04f;
+        sweep_last_ms = sweep_now;
+        sweep3_phase = fmodf(sweep3_phase + sweep_d, 80.0f);
+        sweep5_phase = fmodf(sweep5_phase + sweep_d, 30.0f);
+
         /* Background animation (bg_mode 0-3). */
         for (int y = 0; y < 32; ++y)
         {
@@ -889,7 +902,7 @@ int main()
 
                 case 3: /* Sweep: glowing diagonal front, top-left to bottom-right. */
                     {
-                        float sweep = fmodf(millis() * 0.04f, 80.0f) - 8.0f;
+                        float sweep = sweep3_phase - 8.0f;
                         float dist  = sweep - (x + y);
                         if (dist >= 0.0f && dist < 6.0f)
                             graphics.set_pen(graphics.create_pen_hsv(
@@ -902,8 +915,7 @@ int main()
 
                 case 5: /* Sweep fast: multiple rapid diagonal fronts. */
                     {
-                        float pos  = fmodf(millis() * 0.04f, 30.0f);
-                        float dist = fmodf(pos - (x + y) * 30.0f / 64.0f + 30.0f, 30.0f);
+                        float dist = fmodf(sweep5_phase - (x + y) * 30.0f / 64.0f + 30.0f, 30.0f);
                         if (dist < 5.0f)
                             graphics.set_pen(graphics.create_pen_hsv(
                                 bg_hue, saturation,
